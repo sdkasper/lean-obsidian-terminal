@@ -87,7 +87,8 @@ jobs:
           if command -v zip &> /dev/null; then
             zip -r "$GITHUB_WORKSPACE/node-pty-${{ matrix.platform }}-${{ matrix.arch }}.zip" .
           else
-            powershell -Command "Compress-Archive -Path '.' -DestinationPath '${{ github.workspace }}/node-pty-${{ matrix.platform }}-${{ matrix.arch }}.zip'"
+            # Compress-Archive with -Path '*' avoids nesting the parent directory name
+            powershell -Command "Compress-Archive -Path '${{ runner.temp }}/node-pty-pkg/*' -DestinationPath '${{ github.workspace }}/node-pty-${{ matrix.platform }}-${{ matrix.arch }}.zip'"
           fi
 
       - uses: actions/upload-artifact@v4
