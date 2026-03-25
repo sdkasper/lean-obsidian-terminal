@@ -36,8 +36,11 @@ function getShellArgs(shellPath: string): string[] {
     if (lower.includes("pwsh") || lower.includes("powershell")) {
       return ["-NoLogo"];
     }
+    return [];
   }
-  return [];
+  // macOS/Linux: launch as login shell so ~/.zprofile, ~/.bash_profile etc.
+  // are sourced and PATH includes Homebrew, nvm, user-installed CLIs.
+  return ["-l"];
 }
 
 /**
