@@ -3,3 +3,4 @@ main.js
 *.js.map
 .DS_Store
 Thumbs.db
+.claude/
