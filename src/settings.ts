@@ -12,7 +12,7 @@ export interface TerminalPluginSettings {
   backgroundColor: string;
   cursorBlink: boolean;
   scrollback: number;
-  defaultLocation: "right" | "bottom";
+  defaultLocation: "bottom" | "right" | "tab-right" | "split-right";
   notifyOnCompletion: boolean;
   notificationSound: NotificationSound;
   notificationVolume: number;
@@ -228,11 +228,13 @@ export class TerminalSettingTab extends PluginSettingTab {
       .setName("Default location")
       .setDesc("Where to open new terminal panels")
       .addDropdown((dropdown) => {
-        dropdown.addOption("bottom", "Bottom");
-        dropdown.addOption("right", "Right");
+        dropdown.addOption("bottom", "Split Tab Bottom");
+        dropdown.addOption("right", "Right Panel");
+        dropdown.addOption("tab-right", "Tab Right");
+        dropdown.addOption("split-right", "Split Tab Right");
         dropdown.setValue(this.plugin.settings.defaultLocation);
         dropdown.onChange(async (value: string) => {
-          this.plugin.settings.defaultLocation = value as "right" | "bottom";
+          this.plugin.settings.defaultLocation = value as TerminalPluginSettings["defaultLocation"];
           await this.plugin.saveSettings();
         });
       });
