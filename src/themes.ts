@@ -95,8 +95,23 @@ export const THEMES: Record<string, ITheme> = {
   },
 };
 
-export const THEME_NAMES = Object.keys(THEMES);
+export const THEME_NAMES = ["system", ...Object.keys(THEMES)];
 
+/** Detect whether Obsidian is currently in dark mode. */
+export function isObsidianDark(): boolean {
+  return document.body.classList.contains("theme-dark");
+}
+
+/**
+ * Resolve a theme name to a concrete xterm.js ITheme.
+ * When name is "system", selects obsidian-dark or obsidian-light
+ * based on Obsidian's current appearance.
+ */
 export function getTheme(name: string): ITheme {
-  return THEMES[name] || THEMES["obsidian-dark"];
+  if (name === "system") {
+    const resolved = isObsidianDark() ? "obsidian-dark" : "obsidian-light";
+    return { ...THEMES[resolved] };
+  }
+  const theme = THEMES[name];
+  return theme ? { ...theme } : { ...THEMES["obsidian-dark"] };
 }

@@ -23,7 +23,7 @@ export const DEFAULT_SETTINGS: TerminalPluginSettings = {
   shellPath: "",
   fontSize: 14,
   fontFamily: "Menlo, Monaco, 'Courier New', monospace",
-  theme: "obsidian-dark",
+  theme: "system",
   backgroundColor: "",
   cursorBlink: true,
   scrollback: 5000,
@@ -145,14 +145,17 @@ export class TerminalSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Theme")
+      .setDesc("\"System\" follows Obsidian\u2019s dark/light mode automatically")
       .addDropdown((dropdown) => {
         for (const name of THEME_NAMES) {
-          dropdown.addOption(name, name);
+          const label = name === "system" ? "System (follow Obsidian)" : name;
+          dropdown.addOption(name, label);
         }
         dropdown.setValue(this.plugin.settings.theme);
         dropdown.onChange(async (value) => {
           this.plugin.settings.theme = value;
           await this.plugin.saveSettings();
+          this.plugin.updateTerminalThemes();
         });
       });
 

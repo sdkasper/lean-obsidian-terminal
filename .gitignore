@@ -4,3 +4,5 @@ main.js
 .DS_Store
 Thumbs.db
 .claude/
+data.json
+shell-integration/

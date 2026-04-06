@@ -4,10 +4,11 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { PtyManager } from "./pty-manager";
-import { getTheme } from "./themes";
+import { getTheme, isObsidianDark } from "./themes";
 import type { TerminalPluginSettings } from "./settings";
 import type { NotificationSound } from "./settings";
 import type { BinaryManager } from "./binary-manager";
+import type { IDisposable } from "@xterm/xterm";
 
 export const TAB_COLORS = [
   { name: "None", value: "" },
@@ -27,6 +28,10 @@ export interface TerminalSession {
   pty: PtyManager;
   containerEl: HTMLElement;
   color: string;
+  /** Whether this session has opted into Mode 2031 color-scheme-change notifications. */
+  mode2031: boolean;
+  /** Disposables for parser handlers (cleaned up on tab close). */
+  parserDisposables: IDisposable[];
 }
 
 let sessionCounter = 0;
@@ -108,6 +113,82 @@ function playNotificationSound(sound: NotificationSound, volume: number): void {
   } catch {
     // Audio not available — silently ignore
   }
+}
+
+// ---------------------------------------------------------------------------
+// Terminal color reporting helpers (OSC 10/11, Mode 2031)
+// ---------------------------------------------------------------------------
+
+const ESC = "\x1b";
+const BEL = "\x07";
+const ST = `${ESC}\\`;
+const HEX6_RE = /^#[0-9a-fA-F]{6}$/;
+
+/** Convert "#RRGGBB" hex to X11 "rgb:RRRR/GGGG/BBBB" (16-bit per component). */
+function hexToX11(hex: string): string {
+  if (!HEX6_RE.test(hex)) return "rgb:0000/0000/0000";
+  const r = hex.slice(1, 3);
+  const g = hex.slice(3, 5);
+  const b = hex.slice(5, 7);
+  return `rgb:${r}${r}/${g}${g}/${b}${b}`;
+}
+
+/** Get the effective foreground color for a session. */
+function sessionForeground(session: TerminalSession): string {
+  return (session.terminal.options.theme?.foreground) || "#d4d4d4";
+}
+
+/** Get the effective background color for a session. */
+function sessionBackground(session: TerminalSession): string {
+  return (session.terminal.options.theme?.background) || "#1e1e1e";
+}
+
+/**
+ * Register OSC 10/11 query handlers and Mode 2031 / CSI ?996n handlers
+ * on a terminal session. Responses are written back to the PTY so the child
+ * app reads them from stdin — matching real terminal behavior.
+ */
+function registerColorReporting(session: TerminalSession): void {
+  const { terminal, pty } = session;
+  const d: IDisposable[] = session.parserDisposables;
+
+  // --- OSC 10 ; ? — query default foreground color ---
+  d.push(terminal.parser.registerOscHandler(10, (data: string) => {
+    if (data !== "?") return false; // not a query, let default handler run
+    const color = hexToX11(sessionForeground(session));
+    pty.write(`${ESC}]10;${color}${BEL}`);
+    return true;
+  }));
+
+  // --- OSC 11 ; ? — query default background color ---
+  d.push(terminal.parser.registerOscHandler(11, (data: string) => {
+    if (data !== "?") return false;
+    const color = hexToX11(sessionBackground(session));
+    pty.write(`${ESC}]11;${color}${BEL}`);
+    return true;
+  }));
+
+  // --- CSI ? 996 n — one-shot dark/light mode query ---
+  d.push(terminal.parser.registerCsiHandler({ prefix: "?", final: "n" }, (params) => {
+    if (params[0] !== 996) return false;
+    const mode = isObsidianDark() ? 1 : 2; // 1 = dark, 2 = light
+    pty.write(`${ESC}[?997;${mode}n`);
+    return true;
+  }));
+
+  // --- CSI ? 2031 h — enable Mode 2031 (color-scheme-change notifications) ---
+  d.push(terminal.parser.registerCsiHandler({ prefix: "?", final: "h" }, (params) => {
+    if (params[0] !== 2031) return false;
+    session.mode2031 = true;
+    return true;
+  }));
+
+  // --- CSI ? 2031 l — disable Mode 2031 ---
+  d.push(terminal.parser.registerCsiHandler({ prefix: "?", final: "l" }, (params) => {
+    if (params[0] !== 2031) return false;
+    session.mode2031 = false;
+    return true;
+  }));
 }
 
 export class TerminalTabManager {
@@ -213,7 +294,13 @@ export class TerminalTabManager {
     const pty = new PtyManager(this.pluginDir);
     const session: TerminalSession = {
       id, name, terminal, fitAddon, pty, containerEl, color: "",
+      mode2031: false,
+      parserDisposables: [],
     };
+
+    // Register terminal color reporting (OSC 10/11, Mode 2031)
+    registerColorReporting(session);
+
     this.sessions.push(session);
     this.switchTab(id);
     this.renderTabBar();
@@ -292,6 +379,8 @@ export class TerminalTabManager {
     if (idx === -1) return;
 
     const session = this.sessions[idx];
+    for (const d of session.parserDisposables) d.dispose();
+    session.parserDisposables = [];
     session.pty.kill();
     session.terminal.dispose();
     session.containerEl.remove();
@@ -336,6 +425,8 @@ export class TerminalTabManager {
 
   destroyAll(): void {
     for (const session of this.sessions) {
+      for (const d of session.parserDisposables) d.dispose();
+      session.parserDisposables = [];
       session.pty.kill();
       session.terminal.dispose();
       session.containerEl.remove();
@@ -443,6 +534,24 @@ export class TerminalTabManager {
     }
     for (const session of this.sessions) {
       session.terminal.options.theme = { ...session.terminal.options.theme, background: theme.background };
+    }
+  }
+
+  /** Re-apply the full theme to all sessions (used when Obsidian switches dark/light). */
+  updateTheme(): void {
+    const theme = getTheme(this.settings.theme);
+    if (this.settings.backgroundColor) {
+      theme.background = this.settings.backgroundColor;
+    }
+    const isDark = isObsidianDark();
+    for (const session of this.sessions) {
+      session.terminal.options.theme = theme;
+
+      // Notify child apps that opted into Mode 2031 color-scheme-change updates
+      if (session.mode2031) {
+        const mode = isDark ? 1 : 2; // 1 = dark, 2 = light
+        session.pty.write(`${ESC}[?997;${mode}n`);
+      }
     }
   }
 

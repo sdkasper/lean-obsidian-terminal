@@ -95,4 +95,8 @@ export class TerminalView extends ItemView {
   updateBackgroundColor(): void {
     this.tabManager?.updateBackgroundColor();
   }
+
+  updateTheme(): void {
+    this.tabManager?.updateTheme();
+  }
 }
