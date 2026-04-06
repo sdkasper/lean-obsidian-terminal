@@ -2,6 +2,7 @@ import { Notice } from "obsidian";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
+import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { PtyManager } from "./pty-manager";
 import { getTheme } from "./themes";
 import type { TerminalPluginSettings } from "./settings";
@@ -160,14 +161,18 @@ export class TerminalTabManager {
       fontFamily: this.settings.fontFamily,
       cursorBlink: this.settings.cursorBlink,
       scrollback: this.settings.scrollback,
+      allowProposedApi: true,
       theme,
     });
 
     const fitAddon = new FitAddon();
     const webLinksAddon = new WebLinksAddon();
+    const unicode11Addon = new Unicode11Addon();
 
     terminal.loadAddon(fitAddon);
     terminal.loadAddon(webLinksAddon);
+    terminal.loadAddon(unicode11Addon);
+    terminal.unicode.activeVersion = "11";
     terminal.open(containerEl);
 
     // Intercept clipboard shortcuts — Obsidian captures them before xterm.js
