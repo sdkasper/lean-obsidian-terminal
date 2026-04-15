@@ -114,11 +114,16 @@ export function getShellIntegration(
   // macOS / Linux
   if (lower.includes("zsh") || lower.endsWith("/zsh")) {
     const initFile = ensureScript(scriptDir, "zsh-init.zsh", ZSH_SCRIPT);
-    // zsh reads .zshrc from ZDOTDIR; point it to our directory
-    ensureScript(scriptDir, ".zshrc", `source "${initFile}"\n`);
+    const userZdotdir = process.env.ZDOTDIR || process.env.HOME || "";
+    // zsh reads startup files from ZDOTDIR; point it to our directory and
+    // provide forwarding scripts for all three per-user config files so that
+    // the user's real environment (PATH, aliases, etc.) is fully loaded.
+    ensureScript(scriptDir, ".zshenv",   `[[ -f "${userZdotdir}/.zshenv"   ]] && source "${userZdotdir}/.zshenv"\n`);
+    ensureScript(scriptDir, ".zprofile", `[[ -f "${userZdotdir}/.zprofile" ]] && source "${userZdotdir}/.zprofile"\n`);
+    ensureScript(scriptDir, ".zshrc",    `source "${initFile}"\n`);
     return {
       env: {
-        __LOT_USER_ZDOTDIR: process.env.ZDOTDIR || process.env.HOME || "",
+        __LOT_USER_ZDOTDIR: userZdotdir,
         ZDOTDIR: scriptDir,
       },
       args: [],
