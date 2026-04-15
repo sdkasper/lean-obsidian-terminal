@@ -144,8 +144,8 @@ export default class TerminalPlugin extends Plugin {
     const safeName = name || "terminal";
     if (this.ribbonEl) setIcon(this.ribbonEl, safeName);
     for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_TERMINAL)) {
-      // leaf.tabHeaderInnerIconEl is undocumented but stable across Obsidian versions
-      const iconEl = (leaf as any).tabHeaderInnerIconEl as HTMLElement | undefined;
+      // tabHeaderInnerIconEl is undocumented but stable across Obsidian versions
+      const iconEl = (leaf as WorkspaceLeaf & { tabHeaderInnerIconEl?: HTMLElement }).tabHeaderInnerIconEl;
       if (iconEl) setIcon(iconEl, safeName);
     }
   }

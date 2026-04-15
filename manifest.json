@@ -1,7 +1,7 @@
 {
   "id": "lean-terminal",
   "name": "Lean Terminal",
-  "version": "0.6.4",
+  "version": "0.6.5",
   "minAppVersion": "1.5.0",
   "description": "Embedded terminal panel powered by xterm.js and node-pty — no external windows.",
   "author": "LeanProductivity",

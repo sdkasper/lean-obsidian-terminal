@@ -158,7 +158,7 @@ export class TerminalSettingTab extends PluginSettingTab {
 
     const iconSetting = new Setting(containerEl)
       .setName("Icon")
-      .setDesc("Enter a Lucide icon name (e.g. \"terminal\", \"code-2\", \"zap\"). Browse icons at lucide.dev.");
+      .setDesc("Lucide icon name for the ribbon and tab (e.g. \"terminal\", \"code-2\", \"zap\"). Browse icons at lucide.dev.");
 
     let previewEl: HTMLElement | null = null;
 
