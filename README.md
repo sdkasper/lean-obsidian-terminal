@@ -1,30 +1,27 @@
 # Lean Terminal
 
-An embedded terminal panel for [Obsidian](https://obsidian.md), powered by [xterm.js](https://xtermjs.org/) and [node-pty](https://github.com/nicedoc/node-pty). Run shell commands directly inside your vault workspace - no external windows needed.
+An embedded terminal panel for [Obsidian](https://obsidian.md), powered by [xterm.js](https://xtermjs.org/) and [node-pty](https://github.com/nicedoc/node-pty). Run shell commands directly inside your vault workspace — no external windows needed.
 
 **Desktop only.** Requires Obsidian 1.5.0+.
 
 ## Features
 
 - Full PTY terminal (not a simple command runner) with interactive shell support
-- Multiple terminal tabs with drag-to-reorder, rename, and color-coding support
+- Multiple terminal tabs with rename and color-coding support
 - Auto-detects your shell: PowerShell 7 / Windows PowerShell / cmd.exe on Windows, `$SHELL` on macOS/Linux
-- 12 built-in color schemes plus user-customizable themes via `themes.json`
-- System theme that follows Obsidian's dark/light mode automatically
-- Emoji and wide character rendering with correct Unicode 11 width tables
-- Drag a file from the Obsidian file explorer or Windows Explorer to insert its path into the terminal
+- Four built-in color themes: Obsidian Dark, Obsidian Light, Monokai, Solarized Dark
 - Customizable ribbon and panel tab icon (any Lucide icon name)
-- Clickable URLs in terminal output - Ctrl+click to open in your system browser
+- Clickable URLs in terminal output
 - Auto-resize on panel resize
 - Opens at vault root by default
-- Clipboard support: Ctrl+V / Cmd+V paste, Ctrl+C / Cmd+C copy (with selection), optional copy-on-select
-- Visible scrollbar in the terminal viewport for quick navigation
+- Clipboard support: Ctrl+V / Cmd+V paste, Ctrl+C / Cmd+C copy (with selection)
 - Notification sounds when background tab commands finish (4 sound types, adjustable volume)
 - Shift+Enter inserts a newline instead of submitting (muscle memory friendly for Claude Code users)
 - Custom background color override with color picker (match your vault theme)
-- In-terminal search with live match highlighting, forward/back navigation, case toggle, and configurable shortcut (default Ctrl+Alt+F)
-- Pin terminal tabs to prevent accidental closure - pinned tabs show a lock icon and block the close button
 - Configurable: shell path, font size, font family, cursor blink, scrollback, panel location
+- Session persistence: tabs, names, colors, working directories, and scrollback are restored when Obsidian reopens
+- Rescue recently closed tabs via command palette (ring buffer of the last 10 closed sessions by default)
+- Optional [Claude Code](https://claude.com/claude-code) integration: auto-maintained registry of sessions with clickable Resume links
 
 ## Installation
 
@@ -34,7 +31,7 @@ An embedded terminal panel for [Obsidian](https://obsidian.md), powered by [xter
 2. Open **Settings > BRAT > Add Beta Plugin**
 3. Enter: `sdkasper/lean-obsidian-terminal`
 4. Enable the plugin in **Settings > Community Plugins**
-5. Go to **Settings > Terminal > Download binaries** and click **Download** - this fetches the native terminal binary for your platform
+5. Go to **Settings > Terminal > Download binaries** and click **Download** — this fetches the native terminal binary for your platform
 6. Open the terminal via the ribbon icon or command palette
 
 ### Manual Installation
@@ -53,11 +50,9 @@ An embedded terminal panel for [Obsidian](https://obsidian.md), powered by [xter
 | New tab | Command palette: **New terminal tab**, or click the **+** button in the tab bar |
 | Rename tab | Right-click the tab label |
 | Close tab | Click the **x** on the tab |
-| Pin / Unpin tab | Right-click the tab label and choose **Pin** or **Unpin** |
-| Search scrollback | Press **Ctrl+Alt+F** (configurable) to open the search overlay |
-| Reorder tabs | Drag a tab header left or right within the tab bar |
-| Insert file path | Drag a file from the Obsidian file explorer or Windows Explorer and drop it into the terminal |
 | Split pane | Command palette: **Open terminal in new pane** |
+| Restore closed tab | Command palette: **Restore recent terminal session** — pick from recently closed tabs (and Claude sessions, if integration enabled) |
+| Refresh Claude session registry | Command palette: **Refresh Claude session registry** — rewrites the registry note (requires Claude integration enabled) |
 
 ## Settings
 
@@ -69,42 +64,40 @@ An embedded terminal panel for [Obsidian](https://obsidian.md), powered by [xter
 | Theme | Obsidian Dark | Color theme for the terminal |
 | Icon | terminal | Lucide icon name for the ribbon and panel tab icon |
 | Cursor blink | On | Whether the cursor blinks |
-| Copy on select | Off | Automatically copy selected text to the clipboard |
 | Scrollback | 5000 | Number of lines kept in scroll history |
 | Background color | Theme default | Override the theme background with any CSS color (hex, RGB, etc.) |
-| Default location | Bottom | Where the first terminal view opens |
+| Default location | Bottom | Where new terminal panels open (Bottom or Right) |
 | Notify on completion | Off | Sound + notice when a background tab command finishes |
 | Notification sound | Beep | Choose from Beep, Chime, Ping, or Pop |
-| Notification volume | 50 | Volume for notification sounds (0-100) |
-| Search shortcut | Ctrl+Alt+F | Keyboard shortcut to open the in-terminal search overlay |
-
-## Custom themes
-
-The plugin ships with 12 built-in color schemes selectable from **Settings → Appearance & behavior → Theme**. You can add your own by editing `themes.json` in the plugin folder (`<vault>/.obsidian/plugins/lean-terminal/themes.json`).
-
-Use **Open themes folder** in settings to jump straight to it. The file is a plain JSON object keyed by theme name; user themes override built-ins of the same name.
-
-Minimal example:
-
-```json
-{
-  "my-dark": {
-    "background": "#101010",
-    "foreground": "#e0e0e0",
-    "cursor": "#ffffff"
-  }
-}
-```
-
-`background` and `foreground` are required; all other xterm `ITheme` fields (`cursor`, `black`, `red`, `green`, … `brightWhite`) are optional - omitted fields use xterm defaults. Colors must be 6-digit hex (`#rrggbb`).
-
-After editing, click **Reload themes** in settings to apply without restarting Obsidian.
+| Notification volume | 50 | Volume for notification sounds (0–100) |
+| Persist terminal buffer | On | Save scrollback history across restarts. Disable to reduce workspace.json size |
+| Recent sessions to keep | 10 | Closed-tab rescue buffer size. Set to 0 to disable |
+| Enable Claude Code integration | Off | Scan `~/.claude/` for sessions, register the `obsidian://lean-terminal` URI handler, include Claude sessions in the restore picker |
+| Registry note path | claude-sessions.md | Vault-relative path to the auto-maintained Claude sessions registry |
+| Registry sessions to keep | 25 | Max Claude sessions listed in the registry note and picker |
 
 ## How It Works
 
 The plugin uses xterm.js for terminal rendering and node-pty for native pseudo-terminal support. node-pty spawns a real shell process (PowerShell, bash, etc.) and connects its stdin/stdout to xterm.js via Obsidian's Electron runtime. This gives you a fully interactive terminal — not just command execution.
 
-On Windows, the plugin uses ConPTY (via a patched ConoutConnection that avoids Worker threads, which Obsidian's Electron renderer does not support). This gives correct UTF-8 and emoji handling on Windows.
+On Windows, the plugin uses the winpty backend because Obsidian's Electron renderer does not support Worker threads required by ConPTY.
+
+## Session Persistence
+
+Each terminal tab's name, color, working directory, and scrollback buffer are saved to the workspace layout on close and on Obsidian quit. On next launch, tabs are restored with their history visible and a fresh shell spawned in the saved directory. This is visual/history restore — the underlying shell process does not survive quit.
+
+Closing a tab (**x** button) pushes its state to a rescue ring buffer stored in plugin data. Use **Restore recent terminal session** from the command palette to re-open a closed tab at any point.
+
+## Claude Code Integration
+
+Disabled by default. When enabled in settings, the plugin:
+
+- Scans `~/.claude/projects/` for conversation sessions associated with the current vault
+- Generates a markdown registry note on demand (**Refresh Claude session registry** command) with clickable Resume links
+- Registers the `obsidian://lean-terminal?resume=<session-id>` URI so links in the registry (or any note) open a new terminal tab and run `claude --resume <session-id>` once the shell is ready
+- Includes Claude sessions alongside recently closed tabs in the **Restore recent terminal session** picker, sorted by most recent
+
+Sessions started by typing `claude` manually inside a tab are not auto-tracked, but appear in the picker on its next open (the scan runs fresh each time) — click to resume.
 
 ## Feedback
 
