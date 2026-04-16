@@ -66,6 +66,28 @@ An embedded terminal panel for [Obsidian](https://obsidian.md), powered by [xter
 | Notification sound | Beep | Choose from Beep, Chime, Ping, or Pop |
 | Notification volume | 50 | Volume for notification sounds (0–100) |
 
+## Custom themes
+
+The plugin ships with 12 built-in color schemes selectable from **Settings → Appearance & behavior → Theme**. You can add your own by editing `themes.json` in the plugin folder (`<vault>/.obsidian/plugins/lean-terminal/themes.json`).
+
+Use **Open themes folder** in settings to jump straight to it. The file is a plain JSON object keyed by theme name; user themes override built-ins of the same name.
+
+Minimal example:
+
+```json
+{
+  "my-dark": {
+    "background": "#101010",
+    "foreground": "#e0e0e0",
+    "cursor": "#ffffff"
+  }
+}
+```
+
+`background` and `foreground` are required; all other xterm `ITheme` fields (`cursor`, `black`, `red`, `green`, … `brightWhite`) are optional — omitted fields use xterm defaults. Colors must be 6-digit hex (`#rrggbb`).
+
+After editing, click **Reload themes** in settings to apply without restarting Obsidian.
+
 ## How It Works
 
 The plugin uses xterm.js for terminal rendering and node-pty for native pseudo-terminal support. node-pty spawns a real shell process (PowerShell, bash, etc.) and connects its stdin/stdout to xterm.js via Obsidian's Electron runtime. This gives you a fully interactive terminal — not just command execution.
