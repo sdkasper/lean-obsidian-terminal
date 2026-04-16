@@ -3,14 +3,13 @@ import { VIEW_TYPE_TERMINAL } from "./constants";
 import { TerminalView } from "./terminal-view";
 import { TerminalSettingTab, DEFAULT_SETTINGS, type TerminalPluginSettings } from "./settings";
 import { BinaryManager } from "./binary-manager";
-import { ThemeRegistry } from "./theme-registry";
+import { openRecentSessionPicker } from "./recent-sessions";
+import { refreshClaudeRegistry, resumeClaudeSession } from "./claude-sessions";
 
 export default class TerminalPlugin extends Plugin {
   settings: TerminalPluginSettings = DEFAULT_SETTINGS;
   binaryManager!: BinaryManager;
-  themeRegistry!: ThemeRegistry;
   private ribbonEl: HTMLElement | null = null;
-  private themeObserver: MutationObserver | null = null;
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -24,10 +23,6 @@ export default class TerminalPlugin extends Plugin {
     );
     this.binaryManager = new BinaryManager(pluginDir);
     this.binaryManager.checkInstalled();
-
-    // Theme registry — loads optional themes.json from the plugin folder
-    this.themeRegistry = new ThemeRegistry(pluginDir);
-    await this.themeRegistry.load();
 
     // Register the terminal view
     this.registerView(VIEW_TYPE_TERMINAL, (leaf: WorkspaceLeaf) => {
@@ -70,27 +65,41 @@ export default class TerminalPlugin extends Plugin {
       callback: () => void this.openTerminalInNewPane(),
     });
 
+    this.addCommand({
+      id: "restore-recent-terminal-session",
+      name: "Restore recent terminal session",
+      callback: () => void openRecentSessionPicker(this),
+    });
+
+    this.addCommand({
+      id: "refresh-claude-session-registry",
+      name: "Refresh Claude session registry",
+      callback: () => void refreshClaudeRegistry(this),
+    });
+
+    // URI handler for clickable resume links in the registry note.
+    // Gating happens inside resumeClaudeSession — the handler is always registered
+    // so that flipping the setting doesn't require a plugin reload.
+    this.registerObsidianProtocolHandler("lean-terminal", (params) => {
+      if (params.resume) {
+        void resumeClaudeSession(this, params.resume);
+      }
+    });
+
     // Settings tab
     this.addSettingTab(new TerminalSettingTab(this.app, this));
 
-    // Watch for Obsidian theme changes (dark/light toggle)
-    this.themeObserver = new MutationObserver((mutations) => {
-      for (const m of mutations) {
-        if (m.type === "attributes" && m.attributeName === "class") {
-          // Only re-theme when user chose "system" (auto-follow Obsidian)
-          if (this.settings.theme === "system") {
-            this.updateTerminalThemes();
-          }
-        }
-      }
-    });
-    this.themeObserver.observe(document.body, { attributes: true, attributeFilter: ["class"] });
+    // Flush any pending layout save before Obsidian quits. Without this, a
+    // typed-then-quickly-quit scenario loses the last few seconds of activity
+    // because Obsidian's requestSaveLayout is debounced.
+    this.registerEvent(
+      this.app.workspace.on("quit", () => {
+        this.app.workspace.requestSaveLayout.run();
+      })
+    );
   }
 
   onunload(): void {
-    this.themeObserver?.disconnect();
-    this.themeObserver = null;
-
     // Detach after a tick to avoid disrupting the settings modal
     setTimeout(() => {
       this.app.workspace.detachLeavesOfType(VIEW_TYPE_TERMINAL);
@@ -104,21 +113,10 @@ export default class TerminalPlugin extends Plugin {
       return;
     }
 
-    let leaf: WorkspaceLeaf | null;
-    switch (this.settings.defaultLocation) {
-      case "right":
-        leaf = this.app.workspace.getRightLeaf(false);
-        break;
-      case "tab":
-        leaf = this.app.workspace.getLeaf("tab");
-        break;
-      case "split-right":
-        leaf = this.app.workspace.getLeaf("split", "vertical");
-        break;
-      default: // "bottom"
-        leaf = this.app.workspace.getLeaf("split", "horizontal");
-        break;
-    }
+    const leaf =
+      this.settings.defaultLocation === "right"
+        ? this.app.workspace.getRightLeaf(false)
+        : this.app.workspace.getLeaf("split", "horizontal");
 
     if (leaf) {
       await leaf.setViewState({ type: VIEW_TYPE_TERMINAL, active: true });
@@ -160,10 +158,6 @@ export default class TerminalPlugin extends Plugin {
 
   async loadSettings(): Promise<void> {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
-    if ((this.settings.defaultLocation as string) === "tab-right") {
-      this.settings.defaultLocation = "tab";
-      await this.saveSettings();
-    }
   }
 
   async saveSettings(): Promise<void> {
@@ -185,23 +179,6 @@ export default class TerminalPlugin extends Plugin {
       // tabHeaderInnerIconEl is undocumented but stable across Obsidian versions
       const iconEl = (leaf as WorkspaceLeaf & { tabHeaderInnerIconEl?: HTMLElement }).tabHeaderInnerIconEl;
       if (iconEl) setIcon(iconEl, safeName);
-    }
-  }
-
-  /** Re-apply the full theme to all terminal views (e.g. after Obsidian dark/light switch). */
-  updateTerminalThemes(): void {
-    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TERMINAL);
-    for (const leaf of leaves) {
-      const view = leaf.view as TerminalView;
-      view.updateTheme();
-    }
-  }
-
-  updateCopyOnSelect(): void {
-    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TERMINAL);
-    for (const leaf of leaves) {
-      const view = leaf.view as TerminalView;
-      view.updateCopyOnSelect();
     }
   }
 }

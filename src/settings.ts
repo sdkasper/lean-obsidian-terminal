@@ -1,5 +1,6 @@
 import { App, ColorComponent, DropdownComponent, Notice, PluginSettingTab, Setting, setIcon } from "obsidian";
 import type TerminalPlugin from "./main";
+import type { RecentSession } from "./session-state";
 
 export type NotificationSound = "beep" | "chime" | "ping" | "pop";
 
@@ -18,6 +19,13 @@ export interface TerminalPluginSettings {
   notificationSound: NotificationSound;
   notificationVolume: number;
   searchShortcut: string;
+  persistBuffer: boolean;
+  recentSessionsMax: number;
+  recentSessions: RecentSession[];
+  // Claude Code integration — all gated on enableClaudeIntegration
+  enableClaudeIntegration: boolean;
+  claudeRegistryPath: string;
+  claudeSessionsMax: number;
 }
 
 export const DEFAULT_SETTINGS: TerminalPluginSettings = {
@@ -35,6 +43,12 @@ export const DEFAULT_SETTINGS: TerminalPluginSettings = {
   notificationSound: "beep",
   notificationVolume: 50,
   searchShortcut: "Ctrl+Alt+F",
+  persistBuffer: true,
+  recentSessionsMax: 10,
+  recentSessions: [],
+  enableClaudeIntegration: false,
+  claudeRegistryPath: "claude-sessions.md",
+  claudeSessionsMax: 25,
 };
 
 export class TerminalSettingTab extends PluginSettingTab {
@@ -401,11 +415,99 @@ export class TerminalSettingTab extends PluginSettingTab {
           })
       );
 
+<<<<<<< HEAD
     // --- About ---
     new Setting(containerEl).setName("About").setHeading();
 
     new Setting(containerEl)
       .setName("Plugin version")
       .setDesc(`Lean Obsidian Terminal v${this.plugin.manifest.version}`);
+=======
+    // --- Session Persistence ---
+    new Setting(containerEl).setName("Session persistence").setHeading();
+
+    new Setting(containerEl)
+      .setName("Persist terminal buffer")
+      .setDesc(
+        "Save scrollback history across restarts so restored tabs show prior output. Disable to reduce workspace.json size."
+      )
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.persistBuffer).onChange(async (value) => {
+          this.plugin.settings.persistBuffer = value;
+          await this.plugin.saveSettings();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName("Recent sessions to keep")
+      .setDesc(
+        "When a tab is closed, its state is kept for rescue via \"Restore recent terminal session\". Set to 0 to disable."
+      )
+      .addText((text) =>
+        text
+          .setValue(String(this.plugin.settings.recentSessionsMax))
+          .onChange(async (value) => {
+            const num = parseInt(value, 10);
+            if (!isNaN(num) && num >= 0) {
+              this.plugin.settings.recentSessionsMax = num;
+              // Trim the existing ring buffer if the new max is smaller
+              if (this.plugin.settings.recentSessions.length > num) {
+                this.plugin.settings.recentSessions.length = num;
+              }
+              await this.plugin.saveSettings();
+            }
+          })
+      );
+
+    // --- Claude Code Integration ---
+    new Setting(containerEl).setName("Claude Code integration").setHeading();
+
+    new Setting(containerEl)
+      .setName("Enable Claude Code integration")
+      .setDesc(
+        "Scan ~/.claude/ for conversation sessions, register the obsidian://lean-terminal URI handler for resume links, and show Claude sessions in the restore picker."
+      )
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.enableClaudeIntegration).onChange(async (value) => {
+          this.plugin.settings.enableClaudeIntegration = value;
+          await this.plugin.saveSettings();
+          this.display(); // rebuild UI to show/hide Claude-specific settings
+        })
+      );
+
+    if (this.plugin.settings.enableClaudeIntegration) {
+      new Setting(containerEl)
+        .setName("Registry note path")
+        .setDesc(
+          "Vault-relative path to the auto-generated Claude sessions registry note. Created on first refresh."
+        )
+        .addText((text) =>
+          text
+            .setPlaceholder("claude-sessions.md")
+            .setValue(this.plugin.settings.claudeRegistryPath)
+            .onChange(async (value) => {
+              this.plugin.settings.claudeRegistryPath = value.trim() || "claude-sessions.md";
+              await this.plugin.saveSettings();
+            })
+        );
+
+      new Setting(containerEl)
+        .setName("Registry sessions to keep")
+        .setDesc(
+          "Maximum number of most-recent Claude sessions to list in the registry note and picker. Older sessions remain accessible via /resume."
+        )
+        .addText((text) =>
+          text
+            .setValue(String(this.plugin.settings.claudeSessionsMax))
+            .onChange(async (value) => {
+              const num = parseInt(value, 10);
+              if (!isNaN(num) && num > 0) {
+                this.plugin.settings.claudeSessionsMax = num;
+                await this.plugin.saveSettings();
+              }
+            })
+        );
+    }
+>>>>>>> a30db32 (feat: session management — persistence, rescue, Claude Code integration)
   }
 }
