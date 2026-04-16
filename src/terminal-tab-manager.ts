@@ -2,11 +2,13 @@ import { Notice } from "obsidian";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
+import { SerializeAddon } from "@xterm/addon-serialize";
 import { PtyManager } from "./pty-manager";
 import { getTheme } from "./themes";
 import type { TerminalPluginSettings } from "./settings";
 import type { NotificationSound } from "./settings";
 import type { BinaryManager } from "./binary-manager";
+import type { SavedTab } from "./session-state";
 
 export const TAB_COLORS = [
   { name: "None", value: "" },
@@ -23,9 +25,23 @@ export interface TerminalSession {
   name: string;
   terminal: Terminal;
   fitAddon: FitAddon;
+  serializeAddon: SerializeAddon;
   pty: PtyManager;
   containerEl: HTMLElement;
   color: string;
+  /** Working directory the shell was spawned in. */
+  cwd: string;
+  /** Reserved for Stage C: command to re-run on restore (e.g. "claude --resume <uuid>"). */
+  resumeCommand?: string;
+}
+
+/** Options for restoring a tab from persisted state (via setState). */
+export interface CreateTabOpts {
+  name?: string;
+  color?: string;
+  cwd?: string;
+  bufferSerial?: string;
+  resumeCommand?: string;
 }
 
 let sessionCounter = 0;
@@ -120,6 +136,10 @@ export class TerminalTabManager {
   private binaryManager: BinaryManager;
   private onActiveChange?: () => void;
   private onTabsEmpty?: () => void;
+  private requestSaveLayout?: () => void;
+  private onSessionClose?: (tab: SavedTab) => void;
+  /** Set true by any terminal write/resize; consumed by the view's periodic save timer. */
+  private outputDirty = false;
 
   constructor(
     tabBarEl: HTMLElement,
@@ -129,7 +149,9 @@ export class TerminalTabManager {
     pluginDir: string,
     binaryManager: BinaryManager,
     onActiveChange?: () => void,
-    onTabsEmpty?: () => void
+    onTabsEmpty?: () => void,
+    requestSaveLayout?: () => void,
+    onSessionClose?: (tab: SavedTab) => void
   ) {
     this.tabBarEl = tabBarEl;
     this.terminalHostEl = terminalHostEl;
@@ -139,12 +161,71 @@ export class TerminalTabManager {
     this.binaryManager = binaryManager;
     this.onActiveChange = onActiveChange;
     this.onTabsEmpty = onTabsEmpty;
+    this.requestSaveLayout = requestSaveLayout;
+    this.onSessionClose = onSessionClose;
   }
 
-  createTab(): TerminalSession {
+  /** Capture a session's current state as a SavedTab (used on close for recents). */
+  private captureSession(session: TerminalSession): SavedTab {
+    return {
+      name: session.name,
+      color: session.color,
+      cwd: session.cwd,
+      bufferSerial: this.settings.persistBuffer ? session.serializeAddon.serialize() : undefined,
+      resumeCommand: session.resumeCommand,
+    };
+  }
+
+  /**
+   * Consume the dirty flag: returns true if output/resize happened since last call,
+   * resetting it. Used by the view's periodic save timer.
+   */
+  consumeOutputDirty(): boolean {
+    const was = this.outputDirty;
+    this.outputDirty = false;
+    return was;
+  }
+
+  /**
+   * Install an OSC 133 handler + fallback timer that writes `resumeCommand` to the
+   * PTY once the shell is ready (signalled by OSC 133 A). Called from createTab
+   * before pty.spawn so the handler catches the very first prompt.
+   */
+  private setupAutoResume(session: TerminalSession, terminal: Terminal): void {
+    let executed = false;
+    let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
+    let oscDisposable: { dispose: () => void } | null = null;
+
+    const cleanup = (): void => {
+      if (fallbackTimer) { clearTimeout(fallbackTimer); fallbackTimer = null; }
+      if (oscDisposable) { oscDisposable.dispose(); oscDisposable = null; }
+    };
+
+    const runCommand = (): void => {
+      if (executed || !session.resumeCommand) return;
+      executed = true;
+      cleanup();
+      const command = session.resumeCommand;
+      session.resumeCommand = undefined;
+      session.pty.write(command + "\r");
+      this.requestSaveLayout?.();
+    };
+
+    // Primary trigger: shell emits OSC 133 A ("prompt start") when ready for input
+    oscDisposable = terminal.parser.registerOscHandler(133, (data) => {
+      if (data.startsWith("A")) runCommand();
+      return false; // allow other handlers to run
+    });
+
+    // Fallback for shells without OSC 133 support (e.g. cmd.exe): run after 2s
+    fallbackTimer = setTimeout(runCommand, 2000);
+  }
+
+  createTab(opts?: CreateTabOpts): TerminalSession {
     sessionCounter++;
     const id = `terminal-${sessionCounter}`;
-    const name = `Terminal ${sessionCounter}`;
+    const name = opts?.name ?? `Terminal ${sessionCounter}`;
+    const sessionCwd = opts?.cwd ?? this.cwd;
 
     // Create container for this session
     const containerEl = this.terminalHostEl.createDiv({ cls: "terminal-session" });
@@ -164,10 +245,26 @@ export class TerminalTabManager {
 
     const fitAddon = new FitAddon();
     const webLinksAddon = new WebLinksAddon();
+    const serializeAddon = new SerializeAddon();
 
     terminal.loadAddon(fitAddon);
     terminal.loadAddon(webLinksAddon);
+    terminal.loadAddon(serializeAddon);
     terminal.open(containerEl);
+
+    // Replay prior buffer (from persisted state) before the PTY produces new output.
+    // No visual marker is written — markers become part of the serialized buffer and
+    // accumulate across restores.
+    if (opts?.bufferSerial) {
+      terminal.write(opts.bufferSerial);
+    }
+
+    // Mark "output changed since last save" so the view's periodic timer can
+    // trigger a save. We avoid calling requestSaveLayout on every write because
+    // heavy output (e.g. Claude streaming) caused visible input lag when every
+    // chunk scheduled a debounced save-which-serializes-the-whole-buffer.
+    terminal.onWriteParsed(() => { this.outputDirty = true; });
+    terminal.onResize(() => { this.outputDirty = true; });
 
     // Intercept clipboard shortcuts — Obsidian captures them before xterm.js
     terminal.attachCustomKeyEventHandler((e: KeyboardEvent) => {
@@ -206,14 +303,35 @@ export class TerminalTabManager {
 
     const pty = new PtyManager(this.pluginDir);
     const session: TerminalSession = {
-      id, name, terminal, fitAddon, pty, containerEl, color: "",
+      id,
+      name,
+      terminal,
+      fitAddon,
+      serializeAddon,
+      pty,
+      containerEl,
+      color: opts?.color ?? "",
+      cwd: sessionCwd,
+      resumeCommand: opts?.resumeCommand,
     };
     this.sessions.push(session);
     this.switchTab(id);
     this.renderTabBar();
+    this.requestSaveLayout?.();
+
+    // Install the auto-resume OSC listener before the PTY spawns so the first
+    // prompt's OSC 133 A is caught. Any tab with a `resumeCommand` set runs it
+    // once the shell is ready. Callers that don't want this just omit the field.
+    if (session.resumeCommand) {
+      this.setupAutoResume(session, terminal);
+    }
 
     // Defer PTY spawn until DOM is laid out so fitAddon gets correct dimensions
     setTimeout(() => {
+      // Abort if the session was destroyed while waiting (e.g. openTabOrView
+      // destroy-and-recreate flow replaces a default tab during this 100ms window)
+      if (!this.sessions.some((s) => s.id === session.id)) return;
+
       try {
         fitAddon.fit();
       } catch {
@@ -230,7 +348,7 @@ export class TerminalTabManager {
       }
 
       try {
-        pty.spawn(this.settings.shellPath, this.cwd, cols, rows);
+        pty.spawn(this.settings.shellPath, sessionCwd, cols, rows);
       } catch (err) {
         const message = err instanceof Error ? err.message : "unknown error";
         console.error("Terminal: failed to spawn shell", err);
@@ -279,6 +397,7 @@ export class TerminalTabManager {
 
     this.renderTabBar();
     this.onActiveChange?.();
+    this.requestSaveLayout?.();
   }
 
   closeTab(id: string): void {
@@ -286,6 +405,10 @@ export class TerminalTabManager {
     if (idx === -1) return;
 
     const session = this.sessions[idx];
+
+    // Capture for recents BEFORE destroying (serialize needs a live xterm)
+    this.onSessionClose?.(this.captureSession(session));
+
     session.pty.kill();
     session.terminal.dispose();
     session.containerEl.remove();
@@ -307,6 +430,7 @@ export class TerminalTabManager {
     }
 
     this.renderTabBar();
+    this.requestSaveLayout?.();
   }
 
   fitActive(): void {
@@ -328,8 +452,35 @@ export class TerminalTabManager {
     return this.sessions;
   }
 
-  destroyAll(): void {
+  /**
+   * Serialize all sessions into a form suitable for TerminalView.getState().
+   * Buffer serialization is gated on the persistBuffer setting.
+   */
+  serializeSessions(): SavedTab[] {
+    return this.sessions.map((s) => this.captureSession(s));
+  }
+
+  /** Index of the currently active session (0-based), or -1 if none. */
+  getActiveIndex(): number {
+    return this.sessions.findIndex((s) => s.id === this.activeId);
+  }
+
+  /** Activate a session by its position in the sessions array. */
+  switchToIndex(index: number): void {
+    if (index < 0 || index >= this.sessions.length) return;
+    this.switchTab(this.sessions[index].id);
+  }
+
+  /**
+   * Destroy all sessions. Pushes each to onSessionClose (recents) by default.
+   * Pass `saveToRecents: false` when replacing tabs with restored state
+   * (e.g. setState after onOpen's default-tab creation) to avoid polluting recents.
+   */
+  destroyAll(saveToRecents = true): void {
     for (const session of this.sessions) {
+      if (saveToRecents) {
+        this.onSessionClose?.(this.captureSession(session));
+      }
       session.pty.kill();
       session.terminal.dispose();
       session.containerEl.remove();
@@ -363,6 +514,7 @@ export class TerminalTabManager {
       const newName = input.value.trim() || session.name;
       session.name = newName;
       this.renderTabBar();
+      this.requestSaveLayout?.();
     };
 
     input.addEventListener("blur", commit);
@@ -414,6 +566,7 @@ export class TerminalTabManager {
       swatch.addEventListener("click", () => {
         session.color = c.value;
         this.renderTabBar();
+        this.requestSaveLayout?.();
         menu.remove();
       });
     }

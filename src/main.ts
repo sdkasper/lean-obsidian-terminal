@@ -3,6 +3,8 @@ import { VIEW_TYPE_TERMINAL } from "./constants";
 import { TerminalView } from "./terminal-view";
 import { TerminalSettingTab, DEFAULT_SETTINGS, type TerminalPluginSettings } from "./settings";
 import { BinaryManager } from "./binary-manager";
+import { openRecentSessionPicker } from "./recent-sessions";
+import { refreshClaudeRegistry, resumeClaudeSession } from "./claude-sessions";
 
 export default class TerminalPlugin extends Plugin {
   settings: TerminalPluginSettings = DEFAULT_SETTINGS;
@@ -63,8 +65,38 @@ export default class TerminalPlugin extends Plugin {
       callback: () => void this.openTerminalInNewPane(),
     });
 
+    this.addCommand({
+      id: "restore-recent-terminal-session",
+      name: "Restore recent terminal session",
+      callback: () => void openRecentSessionPicker(this),
+    });
+
+    this.addCommand({
+      id: "refresh-claude-session-registry",
+      name: "Refresh Claude session registry",
+      callback: () => void refreshClaudeRegistry(this),
+    });
+
+    // URI handler for clickable resume links in the registry note.
+    // Gating happens inside resumeClaudeSession — the handler is always registered
+    // so that flipping the setting doesn't require a plugin reload.
+    this.registerObsidianProtocolHandler("lean-terminal", (params) => {
+      if (params.resume) {
+        void resumeClaudeSession(this, params.resume);
+      }
+    });
+
     // Settings tab
     this.addSettingTab(new TerminalSettingTab(this.app, this));
+
+    // Flush any pending layout save before Obsidian quits. Without this, a
+    // typed-then-quickly-quit scenario loses the last few seconds of activity
+    // because Obsidian's requestSaveLayout is debounced.
+    this.registerEvent(
+      this.app.workspace.on("quit", () => {
+        this.app.workspace.requestSaveLayout.run();
+      })
+    );
   }
 
   onunload(): void {
