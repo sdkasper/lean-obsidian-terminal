@@ -1,4 +1,4 @@
-import { App, Notice, PluginSettingTab, Setting, ColorComponent, setIcon } from "obsidian";
+import { App, ColorComponent, DropdownComponent, Notice, PluginSettingTab, Setting, setIcon } from "obsidian";
 import type TerminalPlugin from "./main";
 
 export type NotificationSound = "beep" | "chime" | "ping" | "pop";
@@ -142,34 +142,79 @@ export class TerminalSettingTab extends PluginSettingTab {
           })
       );
 
-    new Setting(containerEl)
+    let themeDropdown: DropdownComponent | undefined;
+
+    const themeSetting = new Setting(containerEl)
       .setName("Theme")
       .setDesc(
         "Color scheme for the terminal. Add custom themes by editing themes.json in the plugin folder."
-      )
-      .addDropdown((dropdown) => {
-        for (const name of this.plugin.themeRegistry.getNames()) {
-          dropdown.addOption(name, name);
-        }
-        dropdown.setValue(this.plugin.settings.theme);
-        dropdown.onChange(async (value) => {
-          this.plugin.settings.theme = value;
-          await this.plugin.saveSettings();
-          this.plugin.updateTerminalBackgrounds();
-        });
-      })
-      .addButton((btn) => {
-        btn
-          .setButtonText("Open themes folder")
-          .setTooltip("Open the plugin folder so you can create or edit themes.json")
-          .onClick(async () => {
-            // Inline type: electron isn't declared as a dependency, so typeof import("electron") doesn't resolve.
-            const { shell } = window.require("electron") as {
-              shell: { openPath: (path: string) => Promise<string> };
-            };
-            await shell.openPath(this.plugin.themeRegistry.getPluginDir());
-          });
+      );
+
+    themeSetting.addDropdown((dropdown) => {
+      themeDropdown = dropdown;
+      for (const name of this.plugin.themeRegistry.getNames()) {
+        dropdown.addOption(name, name);
+      }
+      dropdown.setValue(this.plugin.settings.theme);
+      dropdown.onChange(async (value) => {
+        this.plugin.settings.theme = value;
+        await this.plugin.saveSettings();
+        this.plugin.updateTerminalBackgrounds();
       });
+    });
+
+    themeSetting.addButton((btn) => {
+      btn
+        .setButtonText("Open themes folder")
+        .setTooltip("Open the plugin folder so you can create or edit themes.json")
+        .onClick(async () => {
+          // Inline type: electron isn't declared as a dependency, so typeof import("electron") doesn't resolve.
+          const { shell } = window.require("electron") as {
+            shell: { openPath: (path: string) => Promise<string> };
+          };
+          await shell.openPath(this.plugin.themeRegistry.getPluginDir());
+        });
+    });
+
+    themeSetting.addButton((btn) => {
+      btn
+        .setButtonText("Reload themes")
+        .setTooltip("Re-read themes.json and refresh the list")
+        .onClick(async () => {
+          await this.plugin.themeRegistry.load();
+
+          // Repopulate dropdown options in place.
+          // The `if` guard is defensive — the addDropdown callback runs
+          // synchronously above, so themeDropdown is always assigned before
+          // this handler can fire.
+          if (themeDropdown) {
+            themeDropdown.selectEl.empty();
+            for (const name of this.plugin.themeRegistry.getNames()) {
+              themeDropdown.addOption(name, name);
+            }
+
+            // Keep current selection if still valid, else fall back to obsidian-dark
+            const current = this.plugin.settings.theme;
+            const available = this.plugin.themeRegistry.getNames();
+            if (available.includes(current)) {
+              themeDropdown.setValue(current);
+            } else {
+              this.plugin.settings.theme = "obsidian-dark";
+              await this.plugin.saveSettings();
+              themeDropdown.setValue("obsidian-dark");
+            }
+          }
+
+          this.plugin.updateTerminalBackgrounds();
+
+          const count = this.plugin.themeRegistry.getNames().length;
+          const errors = this.plugin.themeRegistry.getUserLoadErrors();
+          if (errors.length === 0) {
+            new Notice(`Lean Terminal: Themes reloaded (${count} total).`);
+          }
+          // If there were errors, the registry's load() already showed its own Notice.
+        });
+    });
 
     const iconSetting = new Setting(containerEl)
       .setName("Icon")
