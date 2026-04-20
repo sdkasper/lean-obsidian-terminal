@@ -143,6 +143,14 @@ function sessionBackground(session: TerminalSession): string {
   return (session.terminal.options.theme?.background) || "#1e1e1e";
 }
 
+function resolveTerminalTheme(settings: TerminalPluginSettings) {
+  const theme = getTheme(settings.theme);
+  if (settings.backgroundColor) {
+    theme.background = settings.backgroundColor;
+  }
+  return theme;
+}
+
 /**
  * Register OSC 10/11 query handlers and Mode 2031 / CSI ?996n handlers
  * on a terminal session. Responses are written back to the PTY so the child
@@ -233,10 +241,7 @@ export class TerminalTabManager {
     const containerEl = this.terminalHostEl.createDiv({ cls: "terminal-session" });
 
     // Create xterm.js instance
-    const theme = getTheme(this.settings.theme);
-    if (this.settings.backgroundColor) {
-      theme.background = this.settings.backgroundColor;
-    }
+    const theme = resolveTerminalTheme(this.settings);
     const terminal = new Terminal({
       fontSize: this.settings.fontSize,
       fontFamily: this.settings.fontFamily,
@@ -528,10 +533,7 @@ export class TerminalTabManager {
   }
 
   updateBackgroundColor(): void {
-    const theme = getTheme(this.settings.theme);
-    if (this.settings.backgroundColor) {
-      theme.background = this.settings.backgroundColor;
-    }
+    const theme = resolveTerminalTheme(this.settings);
     for (const session of this.sessions) {
       session.terminal.options.theme = { ...session.terminal.options.theme, background: theme.background };
     }
@@ -539,10 +541,7 @@ export class TerminalTabManager {
 
   /** Re-apply the full theme to all sessions (used when Obsidian switches dark/light). */
   updateTheme(): void {
-    const theme = getTheme(this.settings.theme);
-    if (this.settings.backgroundColor) {
-      theme.background = this.settings.backgroundColor;
-    }
+    const theme = resolveTerminalTheme(this.settings);
     const isDark = isObsidianDark();
     for (const session of this.sessions) {
       session.terminal.options.theme = theme;
