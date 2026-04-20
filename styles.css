@@ -201,6 +201,14 @@
   color: var(--text-normal);
 }
 
+.terminal-tab.dragging {
+  opacity: 0.4;
+}
+
+.terminal-tab.drag-over {
+  border-left: 2px solid var(--interactive-accent);
+}
+
 .terminal-tab.active {
   background: var(--background-primary);
   color: var(--text-normal);

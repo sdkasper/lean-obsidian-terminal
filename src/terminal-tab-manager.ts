@@ -120,6 +120,7 @@ export class TerminalTabManager {
   private binaryManager: BinaryManager;
   private onActiveChange?: () => void;
   private onTabsEmpty?: () => void;
+  private dragSrcId: string | null = null;
 
   constructor(
     tabBarEl: HTMLElement,
@@ -467,6 +468,49 @@ export class TerminalTabManager {
         e.stopPropagation();
         this.closeTab(session.id);
       });
+
+      if (this.sessions.length > 1) {
+        tab.draggable = true;
+
+        tab.addEventListener("dragstart", (e) => {
+          this.dragSrcId = session.id;
+          tab.classList.add("dragging");
+          e.dataTransfer?.setDragImage(tab, 0, 0);
+        });
+
+        tab.addEventListener("dragend", () => {
+          this.dragSrcId = null;
+          tab.classList.remove("dragging");
+          this.tabBarEl.querySelectorAll(".drag-over").forEach((el) =>
+            el.classList.remove("drag-over")
+          );
+        });
+
+        tab.addEventListener("dragover", (e) => {
+          e.preventDefault();
+          if (this.dragSrcId && this.dragSrcId !== session.id) {
+            tab.classList.add("drag-over");
+          }
+        });
+
+        tab.addEventListener("dragleave", () => {
+          tab.classList.remove("drag-over");
+        });
+
+        tab.addEventListener("drop", (e) => {
+          e.preventDefault();
+          tab.classList.remove("drag-over");
+          if (!this.dragSrcId || this.dragSrcId === session.id) return;
+
+          const srcIndex = this.sessions.findIndex((s) => s.id === this.dragSrcId);
+          const dstIndex = this.sessions.findIndex((s) => s.id === session.id);
+          if (srcIndex === -1 || dstIndex === -1) return;
+
+          const [moved] = this.sessions.splice(srcIndex, 1);
+          this.sessions.splice(dstIndex, 0, moved);
+          this.renderTabBar();
+        });
+      }
     }
 
     const addBtn = this.tabBarEl.createDiv({ cls: "terminal-new-tab", text: "+" });
