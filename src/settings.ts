@@ -22,7 +22,7 @@ export interface TerminalPluginSettings {
 export const DEFAULT_SETTINGS: TerminalPluginSettings = {
   shellPath: "",
   fontSize: 14,
-  fontFamily: "Menlo, Monaco, 'Courier New', monospace",
+  fontFamily: "Menlo, Monaco, 'Courier New', 'Segoe UI Emoji', monospace",
   theme: "system",
   backgroundColor: "",
   cursorBlink: true,

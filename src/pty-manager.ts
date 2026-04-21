@@ -121,9 +121,9 @@ export class PtyManager {
       rows,
       cwd,
       env: ptyEnv,
-      // Force winpty backend on Windows. Conpty requires Worker threads
-      // which Obsidian's Electron renderer does not support.
-      useConpty: false,
+      // ConPTY with patched ConoutConnection (inline socket piping, no Worker threads).
+      // useConpty defaults to true on Windows — ConPTY has correct UTF-8/emoji support.
+      // Fallback: set useConpty: false here if ConPTY deadlocks on your Electron build.
     });
   }
 
