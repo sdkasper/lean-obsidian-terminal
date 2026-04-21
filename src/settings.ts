@@ -145,7 +145,7 @@ export class TerminalSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Theme")
-      .setDesc("\"System\" follows Obsidian\u2019s dark/light mode automatically")
+      .setDesc("Follows Obsidian’s dark/light mode automatically when set to \"System\"")
       .addDropdown((dropdown) => {
         for (const name of THEME_NAMES) {
           const label = name === "system" ? "System (follow Obsidian)" : name;

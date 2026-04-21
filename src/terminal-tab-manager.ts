@@ -121,7 +121,6 @@ function playNotificationSound(sound: NotificationSound, volume: number): void {
 
 const ESC = "\x1b";
 const BEL = "\x07";
-const ST = `${ESC}\\`;
 const HEX6_RE = /^#[0-9a-fA-F]{6}$/;
 
 /** Convert "#RRGGBB" hex to X11 "rgb:RRRR/GGGG/BBBB" (16-bit per component). */
