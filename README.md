@@ -7,9 +7,12 @@ An embedded terminal panel for [Obsidian](https://obsidian.md), powered by [xter
 ## Features
 
 - Full PTY terminal (not a simple command runner) with interactive shell support
-- Multiple terminal tabs with rename and color-coding support
+- Multiple terminal tabs with drag-to-reorder, rename, and color-coding support
 - Auto-detects your shell: PowerShell 7 / Windows PowerShell / cmd.exe on Windows, `$SHELL` on macOS/Linux
-- Four built-in color themes: Obsidian Dark, Obsidian Light, Monokai, Solarized Dark
+- 12 built-in color schemes plus user-customizable themes via `themes.json`
+- System theme that follows Obsidian's dark/light mode automatically
+- Emoji and wide character rendering with correct Unicode 11 width tables
+- Drag a file from the Obsidian file explorer or Windows Explorer to insert its path into the terminal
 - Customizable ribbon and panel tab icon (any Lucide icon name)
 - Clickable URLs in terminal output
 - Auto-resize on panel resize
@@ -47,6 +50,8 @@ An embedded terminal panel for [Obsidian](https://obsidian.md), powered by [xter
 | New tab | Command palette: **New terminal tab**, or click the **+** button in the tab bar |
 | Rename tab | Right-click the tab label |
 | Close tab | Click the **x** on the tab |
+| Reorder tabs | Drag a tab header left or right within the tab bar |
+| Insert file path | Drag a file from the Obsidian file explorer or Windows Explorer and drop it into the terminal |
 | Split pane | Command palette: **Open terminal in new pane** |
 
 ## Settings
@@ -92,7 +97,7 @@ After editing, click **Reload themes** in settings to apply without restarting O
 
 The plugin uses xterm.js for terminal rendering and node-pty for native pseudo-terminal support. node-pty spawns a real shell process (PowerShell, bash, etc.) and connects its stdin/stdout to xterm.js via Obsidian's Electron runtime. This gives you a fully interactive terminal — not just command execution.
 
-On Windows, the plugin uses the winpty backend because Obsidian's Electron renderer does not support Worker threads required by ConPTY.
+On Windows, the plugin uses ConPTY (via a patched ConoutConnection that avoids Worker threads, which Obsidian's Electron renderer does not support). This gives correct UTF-8 and emoji handling on Windows.
 
 ## Feedback
 

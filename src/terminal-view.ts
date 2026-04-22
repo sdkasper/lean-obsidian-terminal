@@ -55,6 +55,7 @@ export class TerminalView extends ItemView {
 
     // Create tab manager and first terminal
     this.tabManager = new TerminalTabManager(
+      this.plugin.app,
       tabBarEl,
       terminalHostEl,
       this.plugin.settings,

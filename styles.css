@@ -389,3 +389,16 @@
   width: 16px;
   height: 16px;
 }
+
+/* Drag-and-drop file path label */
+.terminal-drag-label {
+  position: fixed;
+  display: none;
+  padding: 4px 10px;
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+  border-radius: 4px;
+  font-size: 13px;
+  pointer-events: none;
+  z-index: 9999;
+}

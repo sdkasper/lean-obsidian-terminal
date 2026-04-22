@@ -1,4 +1,4 @@
-import { Notice } from "obsidian";
+import { Notice, App } from "obsidian";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
@@ -33,6 +33,7 @@ export interface TerminalSession {
   mode2031: boolean;
   /** Disposables for parser handlers (cleaned up on tab close). */
   parserDisposables: IDisposable[];
+  dragLabel: HTMLElement;
 }
 
 let sessionCounter = 0;
@@ -199,6 +200,51 @@ function registerColorReporting(session: TerminalSession): void {
   }));
 }
 
+function quotePath(rawPath: string, shellPath: string): string {
+  if (!rawPath.includes(' ')) return rawPath;
+  const lower = shellPath.toLowerCase();
+  if (lower.includes('bash') || lower.includes('zsh') || lower.includes('sh')) {
+    return `'${rawPath}'`;
+  }
+  return `"${rawPath}"`;
+}
+
+function extractDropPath(e: DragEvent, app: App): string | null {
+  // OS file drag via text/uri-list (file:// URLs in Electron)
+  const uriList = e.dataTransfer?.getData('text/uri-list');
+  if (uriList) {
+    const uri = uriList.split('\n')[0].trim();
+    if (uri.startsWith('file://')) {
+      const path = window.require('url').fileURLToPath(uri);
+      return path;
+    }
+  }
+
+  // OS file drag via dataTransfer.files — use Electron webUtils (Electron 32+) with .path fallback
+  if (e.dataTransfer?.files.length) {
+    const file = e.dataTransfer.files[0];
+    try {
+      const { webUtils } = (window as any).require('electron');
+      const p = webUtils.getPathForFile(file);
+      if (p) return p;
+    } catch {
+      const p = (file as any).path;
+      if (p) return p;
+    }
+  }
+
+  // Obsidian internal file drag
+  const draggable = (app as any).dragManager?.draggable;
+  if (draggable?.file) {
+    const basePath = (app.vault.adapter as any).basePath;
+    const vaultPath = draggable.file.path.split('/').join(window.require('path').sep);
+    const fullPath = window.require('path').join(basePath, vaultPath);
+    return fullPath;
+  }
+
+  return null;
+}
+
 export class TerminalTabManager {
   private sessions: TerminalSession[] = [];
   private activeId: string | null = null;
@@ -212,8 +258,10 @@ export class TerminalTabManager {
   private onActiveChange?: () => void;
   private onTabsEmpty?: () => void;
   private dragSrcId: string | null = null;
+  private app: App;
 
   constructor(
+    app: App,
     tabBarEl: HTMLElement,
     terminalHostEl: HTMLElement,
     settings: TerminalPluginSettings,
@@ -224,6 +272,7 @@ export class TerminalTabManager {
     onActiveChange?: () => void,
     onTabsEmpty?: () => void
   ) {
+    this.app = app;
     this.tabBarEl = tabBarEl;
     this.terminalHostEl = terminalHostEl;
     this.settings = settings;
@@ -263,6 +312,48 @@ export class TerminalTabManager {
     terminal.loadAddon(unicode11Addon);
     terminal.unicode.activeVersion = "11";
     terminal.open(containerEl);
+
+    // Drag-and-drop file path insertion
+    const dragLabel = document.body.createDiv({ cls: 'terminal-drag-label' });
+    dragLabel.setText('Paste path to file');
+
+    const isFileDrag = (e: DragEvent): boolean =>
+      !!e.dataTransfer?.types.includes('Files') ||
+      !!(this.app as any).dragManager?.draggable;
+
+    const showLabel = (e: DragEvent) => {
+      dragLabel.style.display = 'block';
+      dragLabel.style.left = `${e.clientX + 14}px`;
+      dragLabel.style.top = `${e.clientY + 14}px`;
+    };
+    const hideLabel = () => { dragLabel.style.display = 'none'; };
+
+    containerEl.addEventListener('dragenter', (e) => {
+      if (!isFileDrag(e)) return;
+      e.preventDefault();
+      showLabel(e);
+    });
+
+    containerEl.addEventListener('dragover', (e) => {
+      if (!isFileDrag(e)) return;
+      e.preventDefault();
+      e.dataTransfer!.dropEffect = 'copy';
+      showLabel(e);
+    });
+
+    containerEl.addEventListener('dragleave', (e) => {
+      if (!containerEl.contains(e.relatedTarget as Node)) hideLabel();
+    });
+
+    containerEl.addEventListener('drop', (e) => {
+      e.preventDefault();
+      hideLabel();
+
+      const path = extractDropPath(e, this.app);
+      console.log('Extracted path:', path);
+      if (!path) return;
+      pty.write(quotePath(path, pty.shellPath));
+    });
 
     // Intercept clipboard shortcuts — Obsidian captures them before xterm.js
     terminal.attachCustomKeyEventHandler((e: KeyboardEvent) => {
@@ -304,6 +395,7 @@ export class TerminalTabManager {
       id, name, terminal, fitAddon, pty, containerEl, color: "",
       mode2031: false,
       parserDisposables: [],
+      dragLabel,
     };
 
     // Register terminal color reporting (OSC 10/11, Mode 2031)
@@ -392,6 +484,7 @@ export class TerminalTabManager {
     session.pty.kill();
     session.terminal.dispose();
     session.containerEl.remove();
+    session.dragLabel.remove();
     this.sessions.splice(idx, 1);
 
     // Switch to adjacent tab if we closed the active one
@@ -438,6 +531,7 @@ export class TerminalTabManager {
       session.pty.kill();
       session.terminal.dispose();
       session.containerEl.remove();
+      session.dragLabel.remove();
     }
     this.sessions = [];
     this.activeId = null;

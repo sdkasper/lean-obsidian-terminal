@@ -87,9 +87,14 @@ export class PtyManager {
   private ptyProcess: IPtyProcess | null = null;
   private nodePty: NodePtyModule | null = null;
   private pluginDir: string;
+  private _shellPath: string = '';
 
   constructor(pluginDir: string) {
     this.pluginDir = pluginDir;
+  }
+
+  get shellPath(): string {
+    return this._shellPath;
   }
 
   spawn(
@@ -102,6 +107,7 @@ export class PtyManager {
     this.nodePty = loadNodePty(this.pluginDir);
 
     const shell = shellPath || getDefaultShell();
+    this._shellPath = shell;
     validateShellPath(shell);
     const baseArgs = getShellArgs(shell);
 
