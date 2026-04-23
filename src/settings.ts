@@ -57,13 +57,13 @@ export class TerminalSettingTab extends PluginSettingTab {
 
     let statusDesc: string;
     if (status === "ready") {
-      statusDesc = `node-pty v${version} installed \u2014 ${platform}-${arch}`;
+      statusDesc = `node-pty v${version} installed - ${platform}-${arch}`;
     } else if (status === "error") {
       statusDesc = `Error: ${bm.getStatusMessage()}`;
     } else if (status === "downloading") {
       statusDesc = `Downloading\u2026 ${bm.getStatusMessage()}`;
     } else {
-      statusDesc = `Not installed \u2014 ${platform}-${arch}`;
+      statusDesc = `Not installed - ${platform}-${arch}`;
     }
 
     new Setting(containerEl).setName("Status").setDesc(statusDesc);

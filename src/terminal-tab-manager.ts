@@ -408,7 +408,7 @@ export class TerminalTabManager {
     terminal.onSelectionChange(() => {
       if (!this.settings.copyOnSelect) return;
       const text = terminal.getSelection();
-      if (text) navigator.clipboard.writeText(text);
+      if (text) void navigator.clipboard.writeText(text);
     });
 
     this.sessions.push(session);
