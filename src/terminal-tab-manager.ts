@@ -81,6 +81,7 @@ export interface TerminalSession {
   searchAddon: SearchAddon;
   overlayEl: HTMLElement;
   toggleSearch: () => void;
+  pinned: boolean;
 }
 
 let sessionCounter = 0;
@@ -540,6 +541,7 @@ export class TerminalTabManager {
       searchAddon,
       overlayEl,
       toggleSearch,
+      pinned: false,
     };
 
     // Register terminal color reporting (OSC 10/11, Mode 2031)
