@@ -3,6 +3,7 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
+import { SearchAddon } from "@xterm/addon-search";
 import { PtyManager } from "./pty-manager";
 import type { ThemeRegistry } from "./theme-registry";
 import { isObsidianDark } from "./themes";
@@ -34,6 +35,9 @@ export interface TerminalSession {
   /** Disposables for parser handlers (cleaned up on tab close). */
   parserDisposables: IDisposable[];
   dragLabel: HTMLElement;
+  searchAddon: SearchAddon;
+  overlayEl: HTMLElement;
+  toggleSearch: () => void;
 }
 
 let sessionCounter = 0;
@@ -316,16 +320,92 @@ export class TerminalTabManager {
       void shell.openExternal(uri);
     });
     const unicode11Addon = new Unicode11Addon();
+    const searchAddon = new SearchAddon();
 
     terminal.loadAddon(fitAddon);
     terminal.loadAddon(webLinksAddon);
     terminal.loadAddon(unicode11Addon);
+    terminal.loadAddon(searchAddon);
     terminal.unicode.activeVersion = "11";
     terminal.open(containerEl);
 
     // Drag-and-drop file path insertion
     const dragLabel = document.body.createDiv({ cls: 'terminal-drag-label' });
     dragLabel.setText('Paste path to file');
+
+    // Search overlay
+    const overlayEl = containerEl.createDiv({ cls: "lean-terminal-search-overlay" });
+    const searchInput = overlayEl.createEl("input", { type: "text" });
+    searchInput.addClass("lean-terminal-search-input");
+    searchInput.placeholder = "Find...";
+    const counterEl = overlayEl.createSpan({ cls: "lean-terminal-search-counter" });
+    const prevBtn = overlayEl.createEl("button", { cls: "lean-terminal-search-btn", text: "↑" });
+    const nextBtn = overlayEl.createEl("button", { cls: "lean-terminal-search-btn", text: "↓" });
+    const caseBtn = overlayEl.createEl("button", { cls: "lean-terminal-search-btn", text: "Aa" });
+    const closeBtn = overlayEl.createEl("button", { cls: "lean-terminal-search-btn", text: "×" });
+
+    let caseSensitive = false;
+
+    const runSearch = (forward: boolean, incremental = false) => {
+      const q = searchInput.value;
+      const opts = { caseSensitive, incremental };
+      if (forward) {
+        searchAddon.findNext(q, opts);
+      } else {
+        searchAddon.findPrevious(q, opts);
+      }
+    };
+
+    searchAddon.onDidChangeResults((result) => {
+      if (!result || result.resultCount === 0) {
+        counterEl.setText(searchInput.value ? "No results" : "");
+      } else {
+        counterEl.setText(`${result.resultIndex + 1} of ${result.resultCount}`);
+      }
+    });
+
+    const showSearch = () => {
+      overlayEl.addClass("lean-terminal-search-overlay--visible");
+      searchInput.focus();
+    };
+
+    const hideSearch = () => {
+      overlayEl.removeClass("lean-terminal-search-overlay--visible");
+      searchAddon.findNext("", { caseSensitive });
+      counterEl.setText("");
+      terminal.focus();
+    };
+
+    const toggleSearch = () => {
+      if (overlayEl.hasClass("lean-terminal-search-overlay--visible")) {
+        hideSearch();
+      } else {
+        showSearch();
+      }
+    };
+
+    searchInput.addEventListener("input", () => runSearch(true, true));
+
+    searchInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        if (e.shiftKey) runSearch(false);
+        else runSearch(true);
+      } else if (e.key === "Escape") {
+        hideSearch();
+      }
+    });
+
+    nextBtn.addEventListener("click", () => runSearch(true));
+    prevBtn.addEventListener("click", () => runSearch(false));
+
+    caseBtn.addEventListener("click", () => {
+      caseSensitive = !caseSensitive;
+      caseBtn.toggleClass("lean-terminal-search-btn--active", caseSensitive);
+      if (searchInput.value) runSearch(true, true);
+    });
+
+    closeBtn.addEventListener("click", () => hideSearch());
 
     const isFileDrag = (e: DragEvent): boolean =>
       !!e.dataTransfer?.types.includes('Files') ||
@@ -405,6 +485,9 @@ export class TerminalTabManager {
       mode2031: false,
       parserDisposables: [],
       dragLabel,
+      searchAddon,
+      overlayEl,
+      toggleSearch,
     };
 
     // Register terminal color reporting (OSC 10/11, Mode 2031)
