@@ -3,6 +3,7 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
+import { SearchAddon } from "@xterm/addon-search";
 import { PtyManager } from "./pty-manager";
 import type { ThemeRegistry } from "./theme-registry";
 import { isObsidianDark } from "./themes";
@@ -10,6 +11,49 @@ import type { TerminalPluginSettings } from "./settings";
 import type { NotificationSound } from "./settings";
 import type { BinaryManager } from "./binary-manager";
 import type { IDisposable } from "@xterm/xterm";
+
+const SEARCH_DECORATIONS = {
+  matchBackground: "#ffff00",
+  matchBorder: "#ffff00",
+  matchOverviewRuler: "#ffff00",
+  activeMatchBackground: "#ff6600",
+  activeMatchBorder: "#ff0000",
+  activeMatchColorOverviewRuler: "#ff0000",
+} as const;
+
+interface ParsedShortcut {
+  ctrl: boolean;
+  shift: boolean;
+  alt: boolean;
+  meta: boolean;
+  key: string;
+}
+
+function parseShortcut(s: string): ParsedShortcut | null {
+  if (!s.trim()) return null;
+  const parts = s.split("+");
+  const key = parts[parts.length - 1];
+  const lower = parts.map((p) => p.toLowerCase());
+  return {
+    ctrl: lower.includes("ctrl"),
+    shift: lower.includes("shift"),
+    alt: lower.includes("alt"),
+    meta: lower.includes("meta") || lower.includes("cmd"),
+    key,
+  };
+}
+
+function matchesShortcut(e: KeyboardEvent, shortcut: string): boolean {
+  const p = parseShortcut(shortcut);
+  if (!p) return false;
+  return (
+    e.ctrlKey === p.ctrl &&
+    e.shiftKey === p.shift &&
+    e.altKey === p.alt &&
+    e.metaKey === p.meta &&
+    e.key.toLowerCase() === p.key.toLowerCase()
+  );
+}
 
 export const TAB_COLORS = [
   { name: "None", value: "" },
@@ -34,6 +78,9 @@ export interface TerminalSession {
   /** Disposables for parser handlers (cleaned up on tab close). */
   parserDisposables: IDisposable[];
   dragLabel: HTMLElement;
+  searchAddon: SearchAddon;
+  overlayEl: HTMLElement;
+  toggleSearch: () => void;
 }
 
 let sessionCounter = 0;
@@ -316,16 +363,93 @@ export class TerminalTabManager {
       void shell.openExternal(uri);
     });
     const unicode11Addon = new Unicode11Addon();
+    const searchAddon = new SearchAddon();
 
     terminal.loadAddon(fitAddon);
     terminal.loadAddon(webLinksAddon);
     terminal.loadAddon(unicode11Addon);
+    terminal.loadAddon(searchAddon);
     terminal.unicode.activeVersion = "11";
     terminal.open(containerEl);
 
     // Drag-and-drop file path insertion
     const dragLabel = document.body.createDiv({ cls: 'terminal-drag-label' });
     dragLabel.setText('Paste path to file');
+
+    // Search overlay
+    const overlayEl = containerEl.createDiv({ cls: "lean-terminal-search-overlay" });
+    const searchInput = overlayEl.createEl("input", { type: "text" });
+    searchInput.addClass("lean-terminal-search-input");
+    searchInput.placeholder = "Find...";
+    const counterEl = overlayEl.createSpan({ cls: "lean-terminal-search-counter" });
+    const prevBtn = overlayEl.createEl("button", { cls: "lean-terminal-search-btn", text: "↑" });
+    const nextBtn = overlayEl.createEl("button", { cls: "lean-terminal-search-btn", text: "↓" });
+    const caseBtn = overlayEl.createEl("button", { cls: "lean-terminal-search-btn", text: "Aa" });
+    const closeBtn = overlayEl.createEl("button", { cls: "lean-terminal-search-btn", text: "×" });
+
+    let caseSensitive = false;
+
+    const runSearch = (forward: boolean, incremental = false) => {
+      const q = searchInput.value;
+      const opts = { caseSensitive, incremental, decorations: SEARCH_DECORATIONS };
+      if (forward) {
+        searchAddon.findNext(q, opts);
+      } else {
+        searchAddon.findPrevious(q, opts);
+      }
+    };
+
+    const resultsDisposable = searchAddon.onDidChangeResults((result) => {
+      if (!result || result.resultCount === 0) {
+        counterEl.setText(searchInput.value ? "No results" : "");
+      } else {
+        counterEl.setText(`${result.resultIndex + 1} of ${result.resultCount}`);
+      }
+    });
+
+    const showSearch = () => {
+      overlayEl.addClass("lean-terminal-search-overlay--visible");
+      if (searchInput.value) runSearch(true, true);
+      searchInput.focus();
+    };
+
+    const hideSearch = () => {
+      overlayEl.removeClass("lean-terminal-search-overlay--visible");
+      searchAddon.clearDecorations();
+      counterEl.setText("");
+      terminal.focus();
+    };
+
+    const toggleSearch = () => {
+      if (overlayEl.hasClass("lean-terminal-search-overlay--visible")) {
+        hideSearch();
+      } else {
+        showSearch();
+      }
+    };
+
+    searchInput.addEventListener("input", () => runSearch(true, true));
+
+    searchInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        if (e.shiftKey) runSearch(false);
+        else runSearch(true);
+      } else if (e.key === "Escape") {
+        hideSearch();
+      }
+    });
+
+    nextBtn.addEventListener("click", () => runSearch(true));
+    prevBtn.addEventListener("click", () => runSearch(false));
+
+    caseBtn.addEventListener("click", () => {
+      caseSensitive = !caseSensitive;
+      caseBtn.toggleClass("lean-terminal-search-btn--active", caseSensitive);
+      if (searchInput.value) runSearch(true, true);
+    });
+
+    closeBtn.addEventListener("click", () => hideSearch());
 
     const isFileDrag = (e: DragEvent): boolean =>
       !!e.dataTransfer?.types.includes('Files') ||
@@ -369,6 +493,14 @@ export class TerminalTabManager {
       if (e.type !== "keydown") return true;
       const mod = e.metaKey || e.ctrlKey;
 
+      // Search shortcut
+      if (matchesShortcut(e, this.settings.searchShortcut)) {
+        e.preventDefault();
+        const s = this.sessions.find((s) => s.id === id);
+        if (s) s.toggleSearch();
+        return false;
+      }
+
       // Shift+Enter: send newline without submitting
       if (e.shiftKey && e.key === "Enter") {
         e.preventDefault();
@@ -405,10 +537,14 @@ export class TerminalTabManager {
       mode2031: false,
       parserDisposables: [],
       dragLabel,
+      searchAddon,
+      overlayEl,
+      toggleSearch,
     };
 
     // Register terminal color reporting (OSC 10/11, Mode 2031)
     registerColorReporting(session);
+    session.parserDisposables.push(resultsDisposable);
 
     terminal.onSelectionChange(() => {
       if (!this.settings.copyOnSelect) return;

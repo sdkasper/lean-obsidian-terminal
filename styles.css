@@ -407,3 +407,62 @@
 .terminal-drag-label-visible {
   display: block;
 }
+
+/* Search overlay */
+.lean-terminal-search-overlay {
+  display: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: var(--background-secondary);
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.lean-terminal-search-overlay--visible {
+  display: flex;
+}
+
+.lean-terminal-search-input {
+  flex: 1;
+  font-size: 12px;
+  padding: 2px 6px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 3px;
+  outline: none;
+}
+
+.lean-terminal-search-counter {
+  font-size: 11px;
+  color: var(--text-muted);
+  min-width: 60px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.lean-terminal-search-btn {
+  padding: 2px 6px;
+  font-size: 12px;
+  cursor: pointer;
+  background: var(--interactive-normal);
+  color: var(--text-normal);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 3px;
+  line-height: 1.4;
+}
+
+.lean-terminal-search-btn:hover {
+  background: var(--interactive-hover);
+}
+
+.lean-terminal-search-btn--active {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border-color: var(--interactive-accent);
+}
