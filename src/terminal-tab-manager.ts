@@ -513,7 +513,7 @@ export class TerminalTabManager {
       // Paste: Ctrl+V / Cmd+V / Shift+Insert
       if ((mod && e.key === "v") || (e.shiftKey && e.key === "Insert")) {
         e.preventDefault();
-        navigator.clipboard.readText().then((text) => {
+        void navigator.clipboard.readText().then((text) => {
           if (text) {
             const s = this.sessions.find((s) => s.id === id);
             if (s) s.pty.write(text);
@@ -524,7 +524,7 @@ export class TerminalTabManager {
 
       // Copy: Ctrl+C / Cmd+C when there is a selection (otherwise send SIGINT)
       if (mod && e.key === "c" && terminal.hasSelection()) {
-        navigator.clipboard.writeText(terminal.getSelection()).catch(() => {});
+        void navigator.clipboard.writeText(terminal.getSelection()).catch(() => {});
         terminal.clearSelection();
         return false;
       }
