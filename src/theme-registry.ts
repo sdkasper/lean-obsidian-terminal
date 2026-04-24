@@ -67,7 +67,7 @@ export class ThemeRegistry {
 
     if (this.userLoadErrors.length > 0) {
       new Notice(
-        `Lean Terminal: ${this.userLoadErrors.length} custom theme(s) failed to load — see console for details.`
+        `Lean Terminal: ${this.userLoadErrors.length} custom theme(s) failed to load - see console for details.`
       );
     }
   }

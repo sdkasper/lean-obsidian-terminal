@@ -7,7 +7,7 @@ import { Platform } from "obsidian";
  */
 
 const BASH_SCRIPT = `
-# Lean Terminal — shell integration for bash
+# Lean Terminal - shell integration for bash
 if [ -n "$__LOT_SHELL_INTEGRATION" ]; then return 0 2>/dev/null || exit 0; fi
 __LOT_SHELL_INTEGRATION=1
 __lot_prompt_command() {
@@ -26,7 +26,7 @@ printf '\\e]133;A\\e\\\\'
 `.trim();
 
 const ZSH_SCRIPT = `
-# Lean Terminal — shell integration for zsh
+# Lean Terminal - shell integration for zsh
 if [[ -n "$__LOT_SHELL_INTEGRATION" ]]; then return 0; fi
 __LOT_SHELL_INTEGRATION=1
 if [[ -n "$__LOT_USER_ZDOTDIR" ]]; then
@@ -48,7 +48,7 @@ printf '\\e]133;A\\e\\\\'
 `.trim();
 
 const PWSH_SCRIPT = `
-# Lean Terminal — shell integration for PowerShell
+# Lean Terminal - shell integration for PowerShell
 if ($env:__LOT_SHELL_INTEGRATION) { return }
 $env:__LOT_SHELL_INTEGRATION = "1"
 $__lot_original_prompt = $function:prompt
