@@ -21,6 +21,38 @@ const SEARCH_DECORATIONS = {
   activeMatchColorOverviewRuler: "#ff0000",
 } as const;
 
+interface ParsedShortcut {
+  ctrl: boolean;
+  shift: boolean;
+  alt: boolean;
+  meta: boolean;
+  key: string;
+}
+
+function parseShortcut(s: string): ParsedShortcut {
+  const parts = s.split("+");
+  const key = parts[parts.length - 1];
+  const lower = parts.map((p) => p.toLowerCase());
+  return {
+    ctrl: lower.includes("ctrl"),
+    shift: lower.includes("shift"),
+    alt: lower.includes("alt"),
+    meta: lower.includes("meta") || lower.includes("cmd"),
+    key,
+  };
+}
+
+function matchesShortcut(e: KeyboardEvent, shortcut: string): boolean {
+  const p = parseShortcut(shortcut);
+  return (
+    e.ctrlKey === p.ctrl &&
+    e.shiftKey === p.shift &&
+    e.altKey === p.alt &&
+    e.metaKey === p.meta &&
+    e.key.toLowerCase() === p.key.toLowerCase()
+  );
+}
+
 export const TAB_COLORS = [
   { name: "None", value: "" },
   { name: "Vermilion", value: "#FC3634" },
@@ -457,6 +489,14 @@ export class TerminalTabManager {
     terminal.attachCustomKeyEventHandler((e: KeyboardEvent) => {
       if (e.type !== "keydown") return true;
       const mod = e.metaKey || e.ctrlKey;
+
+      // Search shortcut
+      if (matchesShortcut(e, this.settings.searchShortcut)) {
+        e.preventDefault();
+        const s = this.sessions.find((s) => s.id === id);
+        if (s) s.toggleSearch();
+        return false;
+      }
 
       // Shift+Enter: send newline without submitting
       if (e.shiftKey && e.key === "Enter") {
