@@ -468,8 +468,6 @@
 }
 
 /* Tab pinning */
-.terminal-tab--pinned {}
-
 .terminal-tab-pin-icon {
   font-size: 10px;
   opacity: 0.8;

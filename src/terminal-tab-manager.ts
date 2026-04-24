@@ -595,6 +595,7 @@ export class TerminalTabManager {
       });
 
       pty.onExit(() => {
+        session.pinned = false;
         this.closeTab(session.id);
       });
     }, 100);
