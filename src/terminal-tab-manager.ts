@@ -754,6 +754,17 @@ export class TerminalTabManager {
       this.renameTab(sessionId, labelEl);
     });
 
+    // Pin / Unpin option
+    const pinItem = menu.createDiv({
+      cls: "terminal-ctx-item",
+      text: session.pinned ? "Unpin" : "Pin",
+    });
+    pinItem.addEventListener("click", () => {
+      session.pinned = !session.pinned;
+      this.renderTabBar();
+      menu.remove();
+    });
+
     // Color submenu
     menu.createDiv({ cls: "terminal-ctx-item terminal-ctx-color-label", text: "Color" });
     const colorRow = menu.createDiv({ cls: "terminal-ctx-color-row" });
@@ -775,17 +786,6 @@ export class TerminalTabManager {
         menu.remove();
       });
     }
-
-    // Pin / Unpin option
-    const pinItem = menu.createDiv({
-      cls: "terminal-ctx-item",
-      text: session.pinned ? "Unpin" : "Pin",
-    });
-    pinItem.addEventListener("click", () => {
-      session.pinned = !session.pinned;
-      this.renderTabBar();
-      menu.remove();
-    });
 
     document.body.appendChild(menu);
 
