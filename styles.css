@@ -371,7 +371,7 @@
 }
 
 .terminal-session .xterm-viewport::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-thumb-bg);
+  background: var(--scrollbar-thumb-bg, rgba(128, 128, 128, 0.5));
   border-radius: 4px;
 }
 
