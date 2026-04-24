@@ -632,6 +632,8 @@ export class TerminalTabManager {
     if (idx === -1) return;
 
     const session = this.sessions[idx];
+    if (session.pinned) return;
+
     for (const d of session.parserDisposables) d.dispose();
     session.parserDisposables = [];
     session.pty.kill();
@@ -774,6 +776,17 @@ export class TerminalTabManager {
       });
     }
 
+    // Pin / Unpin option
+    const pinItem = menu.createDiv({
+      cls: "terminal-ctx-item",
+      text: session.pinned ? "Unpin" : "Pin",
+    });
+    pinItem.addEventListener("click", () => {
+      session.pinned = !session.pinned;
+      this.renderTabBar();
+      menu.remove();
+    });
+
     document.body.appendChild(menu);
 
     // Close on click outside
@@ -817,13 +830,17 @@ export class TerminalTabManager {
 
     for (const session of this.sessions) {
       const tab = this.tabBarEl.createDiv({
-        cls: `terminal-tab${session.id === this.activeId ? " active" : ""}`,
+        cls: `terminal-tab${session.id === this.activeId ? " active" : ""}${session.pinned ? " terminal-tab--pinned" : ""}`,
       });
 
       // Apply tab color as left border + active highlight
       if (session.color) {
         tab.style.borderLeft = `3px solid ${session.color}`;
         tab.style.setProperty("--tab-accent", session.color);
+      }
+
+      if (session.pinned) {
+        tab.createSpan({ cls: "terminal-tab-pin-icon", text: "\u{1F512}" });
       }
 
       const label = tab.createSpan({ cls: "terminal-tab-label", text: session.name });
@@ -834,11 +851,13 @@ export class TerminalTabManager {
         this.showTabContextMenu(e, session.id, label);
       });
 
-      const closeBtn = tab.createSpan({ cls: "terminal-tab-close", text: "\u00d7" });
-      closeBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        this.closeTab(session.id);
-      });
+      if (!session.pinned) {
+        const closeBtn = tab.createSpan({ cls: "terminal-tab-close", text: "\u00d7" });
+        closeBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          this.closeTab(session.id);
+        });
+      }
 
       if (this.sessions.length > 1) {
         tab.draggable = true;
