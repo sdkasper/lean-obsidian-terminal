@@ -1,6 +1,6 @@
 # Lean Terminal
 
-An embedded terminal panel for [Obsidian](https://obsidian.md), powered by [xterm.js](https://xtermjs.org/) and [node-pty](https://github.com/nicedoc/node-pty). Run shell commands directly inside your vault workspace — no external windows needed.
+An embedded terminal panel for [Obsidian](https://obsidian.md), powered by [xterm.js](https://xtermjs.org/) and [node-pty](https://github.com/nicedoc/node-pty). Run shell commands directly inside your vault workspace - no external windows needed.
 
 **Desktop only.** Requires Obsidian 1.5.0+.
 
@@ -22,6 +22,8 @@ An embedded terminal panel for [Obsidian](https://obsidian.md), powered by [xter
 - Notification sounds when background tab commands finish (4 sound types, adjustable volume)
 - Shift+Enter inserts a newline instead of submitting (muscle memory friendly for Claude Code users)
 - Custom background color override with color picker (match your vault theme)
+- In-terminal search with live match highlighting, forward/back navigation, case toggle, and configurable shortcut (default Ctrl+Alt+F)
+- Pin terminal tabs to prevent accidental closure - pinned tabs show a lock icon and block the close button
 - Configurable: shell path, font size, font family, cursor blink, scrollback, panel location
 
 ## Installation
@@ -32,7 +34,7 @@ An embedded terminal panel for [Obsidian](https://obsidian.md), powered by [xter
 2. Open **Settings > BRAT > Add Beta Plugin**
 3. Enter: `sdkasper/lean-obsidian-terminal`
 4. Enable the plugin in **Settings > Community Plugins**
-5. Go to **Settings > Terminal > Download binaries** and click **Download** — this fetches the native terminal binary for your platform
+5. Go to **Settings > Terminal > Download binaries** and click **Download** - this fetches the native terminal binary for your platform
 6. Open the terminal via the ribbon icon or command palette
 
 ### Manual Installation
@@ -51,6 +53,8 @@ An embedded terminal panel for [Obsidian](https://obsidian.md), powered by [xter
 | New tab | Command palette: **New terminal tab**, or click the **+** button in the tab bar |
 | Rename tab | Right-click the tab label |
 | Close tab | Click the **x** on the tab |
+| Pin / Unpin tab | Right-click the tab label and choose **Pin** or **Unpin** |
+| Search scrollback | Press **Ctrl+Alt+F** (configurable) to open the search overlay |
 | Reorder tabs | Drag a tab header left or right within the tab bar |
 | Insert file path | Drag a file from the Obsidian file explorer or Windows Explorer and drop it into the terminal |
 | Split pane | Command palette: **Open terminal in new pane** |
@@ -71,7 +75,8 @@ An embedded terminal panel for [Obsidian](https://obsidian.md), powered by [xter
 | Default location | Bottom | Where new terminal panels open (Bottom or Right) |
 | Notify on completion | Off | Sound + notice when a background tab command finishes |
 | Notification sound | Beep | Choose from Beep, Chime, Ping, or Pop |
-| Notification volume | 50 | Volume for notification sounds (0–100) |
+| Notification volume | 50 | Volume for notification sounds (0-100) |
+| Search shortcut | Ctrl+Alt+F | Keyboard shortcut to open the in-terminal search overlay |
 
 ## Custom themes
 
@@ -91,7 +96,7 @@ Minimal example:
 }
 ```
 
-`background` and `foreground` are required; all other xterm `ITheme` fields (`cursor`, `black`, `red`, `green`, … `brightWhite`) are optional — omitted fields use xterm defaults. Colors must be 6-digit hex (`#rrggbb`).
+`background` and `foreground` are required; all other xterm `ITheme` fields (`cursor`, `black`, `red`, `green`, … `brightWhite`) are optional - omitted fields use xterm defaults. Colors must be 6-digit hex (`#rrggbb`).
 
 After editing, click **Reload themes** in settings to apply without restarting Obsidian.
 
