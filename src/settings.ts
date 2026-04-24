@@ -34,7 +34,7 @@ export const DEFAULT_SETTINGS: TerminalPluginSettings = {
   notifyOnCompletion: false,
   notificationSound: "beep",
   notificationVolume: 50,
-  searchShortcut: "Ctrl+Shift+F",
+  searchShortcut: "Ctrl+Alt+F",
 };
 
 export class TerminalSettingTab extends PluginSettingTab {
@@ -333,13 +333,13 @@ export class TerminalSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Search shortcut")
-      .setDesc("Keyboard shortcut to open the in-terminal search bar (e.g. Ctrl+Shift+F)")
+      .setDesc("Keyboard shortcut to open the in-terminal search bar. Avoid shortcuts already bound in Obsidian's hotkeys (e.g. Ctrl+Shift+F). Use Ctrl+Alt+F or similar.")
       .addText((text) =>
         text
-          .setPlaceholder("Ctrl+Shift+F")
+          .setPlaceholder("Ctrl+Alt+F")
           .setValue(this.plugin.settings.searchShortcut)
           .onChange(async (value) => {
-            this.plugin.settings.searchShortcut = value.trim() || "Ctrl+Shift+F";
+            this.plugin.settings.searchShortcut = value.trim() || "Ctrl+Alt+F";
             await this.plugin.saveSettings();
           })
       );
