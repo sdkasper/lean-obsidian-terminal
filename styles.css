@@ -466,3 +466,12 @@
   color: var(--text-on-accent);
   border-color: var(--interactive-accent);
 }
+
+/* Tab pinning */
+.terminal-tab--pinned {}
+
+.terminal-tab-pin-icon {
+  font-size: 10px;
+  opacity: 0.8;
+  flex-shrink: 0;
+}
