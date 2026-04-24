@@ -12,6 +12,15 @@ import type { NotificationSound } from "./settings";
 import type { BinaryManager } from "./binary-manager";
 import type { IDisposable } from "@xterm/xterm";
 
+const SEARCH_DECORATIONS = {
+  matchBackground: "#ffff0040",
+  matchBorder: "#ffff00",
+  matchOverviewRuler: "#ffff00",
+  activeMatchBackground: "#ff000060",
+  activeMatchBorder: "#ff0000",
+  activeMatchColorOverviewRuler: "#ff0000",
+} as const;
+
 export const TAB_COLORS = [
   { name: "None", value: "" },
   { name: "Vermilion", value: "#FC3634" },
@@ -348,7 +357,7 @@ export class TerminalTabManager {
 
     const runSearch = (forward: boolean, incremental = false) => {
       const q = searchInput.value;
-      const opts = { caseSensitive, incremental };
+      const opts = { caseSensitive, incremental, decorations: SEARCH_DECORATIONS };
       if (forward) {
         searchAddon.findNext(q, opts);
       } else {
@@ -356,7 +365,7 @@ export class TerminalTabManager {
       }
     };
 
-    searchAddon.onDidChangeResults((result) => {
+    const resultsDisposable = searchAddon.onDidChangeResults((result) => {
       if (!result || result.resultCount === 0) {
         counterEl.setText(searchInput.value ? "No results" : "");
       } else {
@@ -371,7 +380,7 @@ export class TerminalTabManager {
 
     const hideSearch = () => {
       overlayEl.removeClass("lean-terminal-search-overlay--visible");
-      searchAddon.findNext("", { caseSensitive });
+      searchAddon.clearDecorations();
       counterEl.setText("");
       terminal.focus();
     };
@@ -492,6 +501,7 @@ export class TerminalTabManager {
 
     // Register terminal color reporting (OSC 10/11, Mode 2031)
     registerColorReporting(session);
+    session.parserDisposables.push(resultsDisposable);
 
     terminal.onSelectionChange(() => {
       if (!this.settings.copyOnSelect) return;
