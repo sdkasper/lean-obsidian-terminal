@@ -87,7 +87,7 @@ export default class TerminalPlugin extends Plugin {
       case "right":
         leaf = this.app.workspace.getRightLeaf(false);
         break;
-      case "tab-right":
+      case "tab":
         leaf = this.app.workspace.getLeaf("tab");
         break;
       case "split-right":
@@ -138,6 +138,10 @@ export default class TerminalPlugin extends Plugin {
 
   async loadSettings(): Promise<void> {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    if ((this.settings.defaultLocation as string) === "tab-right") {
+      this.settings.defaultLocation = "tab";
+      await this.saveSettings();
+    }
   }
 
   async saveSettings(): Promise<void> {
