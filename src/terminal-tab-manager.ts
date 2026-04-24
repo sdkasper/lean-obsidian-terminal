@@ -29,7 +29,8 @@ interface ParsedShortcut {
   key: string;
 }
 
-function parseShortcut(s: string): ParsedShortcut {
+function parseShortcut(s: string): ParsedShortcut | null {
+  if (!s.trim()) return null;
   const parts = s.split("+");
   const key = parts[parts.length - 1];
   const lower = parts.map((p) => p.toLowerCase());
@@ -44,6 +45,7 @@ function parseShortcut(s: string): ParsedShortcut {
 
 function matchesShortcut(e: KeyboardEvent, shortcut: string): boolean {
   const p = parseShortcut(shortcut);
+  if (!p) return false;
   return (
     e.ctrlKey === p.ctrl &&
     e.shiftKey === p.shift &&
