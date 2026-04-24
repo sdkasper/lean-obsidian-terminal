@@ -1,14 +1,16 @@
-import { FileSystemAdapter, Plugin, WorkspaceLeaf } from "obsidian";
-import { VIEW_TYPE_TERMINAL, ICON_TERMINAL } from "./constants";
+import { FileSystemAdapter, Plugin, WorkspaceLeaf, setIcon } from "obsidian";
+import { VIEW_TYPE_TERMINAL } from "./constants";
 import { TerminalView } from "./terminal-view";
-import { TerminalSettingTab } from "./settings";
-import { DEFAULT_SETTINGS } from "./settings";
-import type { TerminalPluginSettings } from "./settings";
+import { TerminalSettingTab, DEFAULT_SETTINGS, type TerminalPluginSettings } from "./settings";
 import { BinaryManager } from "./binary-manager";
+import { ThemeRegistry } from "./theme-registry";
 
 export default class TerminalPlugin extends Plugin {
   settings: TerminalPluginSettings = DEFAULT_SETTINGS;
   binaryManager!: BinaryManager;
+  themeRegistry!: ThemeRegistry;
+  private ribbonEl: HTMLElement | null = null;
+  private themeObserver: MutationObserver | null = null;
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -23,13 +25,17 @@ export default class TerminalPlugin extends Plugin {
     this.binaryManager = new BinaryManager(pluginDir);
     this.binaryManager.checkInstalled();
 
+    // Theme registry — loads optional themes.json from the plugin folder
+    this.themeRegistry = new ThemeRegistry(pluginDir);
+    await this.themeRegistry.load();
+
     // Register the terminal view
     this.registerView(VIEW_TYPE_TERMINAL, (leaf: WorkspaceLeaf) => {
       return new TerminalView(leaf, this);
     });
 
     // Ribbon icon
-    this.addRibbonIcon(ICON_TERMINAL, "Toggle terminal", () => {
+    this.ribbonEl = this.addRibbonIcon(this.settings.ribbonIcon, "Toggle terminal", () => {
       this.toggleTerminal();
     });
 
@@ -66,9 +72,25 @@ export default class TerminalPlugin extends Plugin {
 
     // Settings tab
     this.addSettingTab(new TerminalSettingTab(this.app, this));
+
+    // Watch for Obsidian theme changes (dark/light toggle)
+    this.themeObserver = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        if (m.type === "attributes" && m.attributeName === "class") {
+          // Only re-theme when user chose "system" (auto-follow Obsidian)
+          if (this.settings.theme === "system") {
+            this.updateTerminalThemes();
+          }
+        }
+      }
+    });
+    this.themeObserver.observe(document.body, { attributes: true, attributeFilter: ["class"] });
   }
 
   onunload(): void {
+    this.themeObserver?.disconnect();
+    this.themeObserver = null;
+
     // Detach after a tick to avoid disrupting the settings modal
     setTimeout(() => {
       this.app.workspace.detachLeavesOfType(VIEW_TYPE_TERMINAL);
@@ -153,6 +175,33 @@ export default class TerminalPlugin extends Plugin {
     for (const leaf of leaves) {
       const view = leaf.view as TerminalView;
       view.updateBackgroundColor();
+    }
+  }
+
+  updateIcon(name: string): void {
+    const safeName = name || "terminal";
+    if (this.ribbonEl) setIcon(this.ribbonEl, safeName);
+    for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_TERMINAL)) {
+      // tabHeaderInnerIconEl is undocumented but stable across Obsidian versions
+      const iconEl = (leaf as WorkspaceLeaf & { tabHeaderInnerIconEl?: HTMLElement }).tabHeaderInnerIconEl;
+      if (iconEl) setIcon(iconEl, safeName);
+    }
+  }
+
+  /** Re-apply the full theme to all terminal views (e.g. after Obsidian dark/light switch). */
+  updateTerminalThemes(): void {
+    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TERMINAL);
+    for (const leaf of leaves) {
+      const view = leaf.view as TerminalView;
+      view.updateTheme();
+    }
+  }
+
+  updateCopyOnSelect(): void {
+    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TERMINAL);
+    for (const leaf of leaves) {
+      const view = leaf.view as TerminalView;
+      view.updateCopyOnSelect();
     }
   }
 }

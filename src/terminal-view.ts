@@ -1,5 +1,5 @@
 import { FileSystemAdapter, ItemView, WorkspaceLeaf } from "obsidian";
-import { VIEW_TYPE_TERMINAL, ICON_TERMINAL } from "./constants";
+import { VIEW_TYPE_TERMINAL } from "./constants";
 import { TerminalTabManager } from "./terminal-tab-manager";
 import type TerminalPlugin from "./main";
 
@@ -23,7 +23,7 @@ export class TerminalView extends ItemView {
   }
 
   getIcon(): string {
-    return ICON_TERMINAL;
+    return this.plugin.settings.ribbonIcon;
   }
 
   // eslint-disable-next-line @typescript-eslint/require-await -- onOpen must satisfy Promise<void> return type of parent ItemView; no actual async work here
@@ -55,12 +55,14 @@ export class TerminalView extends ItemView {
 
     // Create tab manager and first terminal
     this.tabManager = new TerminalTabManager(
+      this.plugin.app,
       tabBarEl,
       terminalHostEl,
       this.plugin.settings,
       cwd,
       pluginDir,
       this.plugin.binaryManager,
+      this.plugin.themeRegistry,
       undefined,
       () => this.leaf.detach()
     );
@@ -94,5 +96,13 @@ export class TerminalView extends ItemView {
 
   updateBackgroundColor(): void {
     this.tabManager?.updateBackgroundColor();
+  }
+
+  updateTheme(): void {
+    this.tabManager?.updateTheme();
+  }
+
+  updateCopyOnSelect(): void {
+    this.tabManager?.updateCopyOnSelect();
   }
 }

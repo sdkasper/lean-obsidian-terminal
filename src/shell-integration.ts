@@ -7,7 +7,7 @@ import { Platform } from "obsidian";
  */
 
 const BASH_SCRIPT = `
-# Lean Terminal — shell integration for bash
+# Lean Terminal - shell integration for bash
 if [ -n "$__LOT_SHELL_INTEGRATION" ]; then return 0 2>/dev/null || exit 0; fi
 __LOT_SHELL_INTEGRATION=1
 __lot_prompt_command() {
@@ -26,7 +26,7 @@ printf '\\e]133;A\\e\\\\'
 `.trim();
 
 const ZSH_SCRIPT = `
-# Lean Terminal — shell integration for zsh
+# Lean Terminal - shell integration for zsh
 if [[ -n "$__LOT_SHELL_INTEGRATION" ]]; then return 0; fi
 __LOT_SHELL_INTEGRATION=1
 if [[ -n "$__LOT_USER_ZDOTDIR" ]]; then
@@ -48,7 +48,7 @@ printf '\\e]133;A\\e\\\\'
 `.trim();
 
 const PWSH_SCRIPT = `
-# Lean Terminal — shell integration for PowerShell
+# Lean Terminal - shell integration for PowerShell
 if ($env:__LOT_SHELL_INTEGRATION) { return }
 $env:__LOT_SHELL_INTEGRATION = "1"
 $__lot_original_prompt = $function:prompt
@@ -114,11 +114,16 @@ export function getShellIntegration(
   // macOS / Linux
   if (lower.includes("zsh") || lower.endsWith("/zsh")) {
     const initFile = ensureScript(scriptDir, "zsh-init.zsh", ZSH_SCRIPT);
-    // zsh reads .zshrc from ZDOTDIR; point it to our directory
-    ensureScript(scriptDir, ".zshrc", `source "${initFile}"\n`);
+    const userZdotdir = process.env.ZDOTDIR || process.env.HOME || "";
+    // zsh reads startup files from ZDOTDIR; point it to our directory and
+    // provide forwarding scripts for all three per-user config files so that
+    // the user's real environment (PATH, aliases, etc.) is fully loaded.
+    ensureScript(scriptDir, ".zshenv",   `[[ -f "${userZdotdir}/.zshenv"   ]] && source "${userZdotdir}/.zshenv"\n`);
+    ensureScript(scriptDir, ".zprofile", `[[ -f "${userZdotdir}/.zprofile" ]] && source "${userZdotdir}/.zprofile"\n`);
+    ensureScript(scriptDir, ".zshrc",    `source "${initFile}"\n`);
     return {
       env: {
-        __LOT_USER_ZDOTDIR: process.env.ZDOTDIR || process.env.HOME || "",
+        __LOT_USER_ZDOTDIR: userZdotdir,
         ZDOTDIR: scriptDir,
       },
       args: [],

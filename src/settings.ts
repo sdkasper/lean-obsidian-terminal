@@ -1,6 +1,5 @@
-import { App, Notice, PluginSettingTab, Setting, ColorComponent } from "obsidian";
+import { App, ColorComponent, DropdownComponent, Notice, PluginSettingTab, Setting, setIcon } from "obsidian";
 import type TerminalPlugin from "./main";
-import { THEME_NAMES } from "./themes";
 
 export type NotificationSound = "beep" | "chime" | "ping" | "pop";
 
@@ -11,11 +10,14 @@ export interface TerminalPluginSettings {
   theme: string;
   backgroundColor: string;
   cursorBlink: boolean;
+  copyOnSelect: boolean;
   scrollback: number;
+  ribbonIcon: string;
   defaultLocation: "bottom" | "right" | "tab" | "split-right";
   notifyOnCompletion: boolean;
   notificationSound: NotificationSound;
   notificationVolume: number;
+  searchShortcut: string;
 }
 
 export const DEFAULT_SETTINGS: TerminalPluginSettings = {
@@ -25,11 +27,14 @@ export const DEFAULT_SETTINGS: TerminalPluginSettings = {
   theme: "obsidian-dark",
   backgroundColor: "",
   cursorBlink: true,
+  copyOnSelect: false,
   scrollback: 5000,
+  ribbonIcon: "terminal",
   defaultLocation: "bottom",
   notifyOnCompletion: false,
   notificationSound: "beep",
   notificationVolume: 50,
+  searchShortcut: "Ctrl+Alt+F",
 };
 
 export class TerminalSettingTab extends PluginSettingTab {
@@ -54,13 +59,13 @@ export class TerminalSettingTab extends PluginSettingTab {
 
     let statusDesc: string;
     if (status === "ready") {
-      statusDesc = `Installed (v${version}) \u2014 ${platform}-${arch}`;
+      statusDesc = `node-pty v${version} installed - ${platform}-${arch}`;
     } else if (status === "error") {
       statusDesc = `Error: ${bm.getStatusMessage()}`;
     } else if (status === "downloading") {
       statusDesc = `Downloading\u2026 ${bm.getStatusMessage()}`;
     } else {
-      statusDesc = `Not installed \u2014 ${platform}-${arch}`;
+      statusDesc = `Not installed - ${platform}-${arch}`;
     }
 
     new Setting(containerEl).setName("Status").setDesc(statusDesc);
@@ -141,18 +146,109 @@ export class TerminalSettingTab extends PluginSettingTab {
           })
       );
 
-    new Setting(containerEl)
+    let themeDropdown: DropdownComponent | undefined;
+
+    const themeSetting = new Setting(containerEl)
       .setName("Theme")
-      .addDropdown((dropdown) => {
-        for (const name of THEME_NAMES) {
-          dropdown.addOption(name, name);
-        }
-        dropdown.setValue(this.plugin.settings.theme);
-        dropdown.onChange(async (value) => {
-          this.plugin.settings.theme = value;
-          await this.plugin.saveSettings();
-        });
+      .setDesc(
+        "Color scheme for the terminal. Add custom themes by editing themes.json in the plugin folder."
+      );
+
+    themeSetting.addDropdown((dropdown) => {
+      themeDropdown = dropdown;
+      for (const name of this.plugin.themeRegistry.getNames()) {
+        dropdown.addOption(name, name);
+      }
+      dropdown.setValue(this.plugin.settings.theme);
+      dropdown.onChange(async (value) => {
+        this.plugin.settings.theme = value;
+        await this.plugin.saveSettings();
+        this.plugin.updateTerminalBackgrounds();
       });
+    });
+
+    themeSetting.addButton((btn) => {
+      btn
+        .setButtonText("Open themes folder")
+        .setTooltip("Open the plugin folder so you can create or edit themes.json")
+        .onClick(async () => {
+          // Inline type: electron isn't declared as a dependency, so typeof import("electron") doesn't resolve.
+          const { shell } = window.require("electron") as {
+            shell: { openPath: (path: string) => Promise<string> };
+          };
+          await shell.openPath(this.plugin.themeRegistry.getPluginDir());
+        });
+    });
+
+    themeSetting.addButton((btn) => {
+      btn
+        .setButtonText("Reload themes")
+        .setTooltip("Re-read themes.json and refresh the list")
+        .onClick(async () => {
+          await this.plugin.themeRegistry.load();
+
+          // Repopulate dropdown options in place.
+          // The `if` guard is defensive — the addDropdown callback runs
+          // synchronously above, so themeDropdown is always assigned before
+          // this handler can fire.
+          if (themeDropdown) {
+            themeDropdown.selectEl.empty();
+            for (const name of this.plugin.themeRegistry.getNames()) {
+              themeDropdown.addOption(name, name);
+            }
+
+            // Keep current selection if still valid, else fall back to obsidian-dark
+            const current = this.plugin.settings.theme;
+            const available = this.plugin.themeRegistry.getNames();
+            if (available.includes(current)) {
+              themeDropdown.setValue(current);
+            } else {
+              this.plugin.settings.theme = "obsidian-dark";
+              await this.plugin.saveSettings();
+              themeDropdown.setValue("obsidian-dark");
+            }
+          }
+
+          this.plugin.updateTerminalBackgrounds();
+
+          const count = this.plugin.themeRegistry.getNames().length;
+          const errors = this.plugin.themeRegistry.getUserLoadErrors();
+          if (errors.length === 0) {
+            new Notice(`Lean Terminal: Themes reloaded (${count} total).`);
+          }
+          // If there were errors, the registry's load() already showed its own Notice.
+        });
+    });
+
+    const iconSetting = new Setting(containerEl)
+      .setName("Icon")
+      .setDesc("Lucide icon name for the ribbon and tab (e.g. \"terminal\", \"code-2\", \"zap\"). Browse icons at lucide.dev.");
+
+    let previewEl: HTMLElement | null = null;
+
+    iconSetting.addText((text) => {
+      text
+        .setValue(this.plugin.settings.ribbonIcon)
+        .onChange(async (value) => {
+          const name = value.trim();
+          this.plugin.settings.ribbonIcon = name;
+          await this.plugin.saveSettings();
+          this.plugin.updateIcon(name);
+          if (previewEl) setIcon(previewEl, name || "terminal");
+        });
+    });
+
+    previewEl = iconSetting.controlEl.createSpan({ cls: "lean-terminal-icon-preview" });
+    setIcon(previewEl, this.plugin.settings.ribbonIcon);
+
+    iconSetting.addButton((btn) => {
+      btn.setButtonText("Reset").onClick(async () => {
+        this.plugin.settings.ribbonIcon = DEFAULT_SETTINGS.ribbonIcon;
+        await this.plugin.saveSettings();
+        this.plugin.updateIcon(DEFAULT_SETTINGS.ribbonIcon);
+        this.display();
+      });
+    });
 
     const bgSetting = new Setting(containerEl)
       .setName("Background color")
@@ -211,6 +307,17 @@ export class TerminalSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
+      .setName("Copy on select")
+      .setDesc("Automatically copy selected text to the clipboard")
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.copyOnSelect).onChange(async (value) => {
+          this.plugin.settings.copyOnSelect = value;
+          await this.plugin.saveSettings();
+          this.plugin.updateCopyOnSelect();
+        })
+      );
+
+    new Setting(containerEl)
       .setName("Scrollback lines")
       .addText((text) =>
         text
@@ -221,6 +328,19 @@ export class TerminalSettingTab extends PluginSettingTab {
               this.plugin.settings.scrollback = num;
               await this.plugin.saveSettings();
             }
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("Search shortcut")
+      .setDesc("Keyboard shortcut to open the in-terminal search bar. Avoid shortcuts already bound in Obsidian's hotkeys (e.g. Ctrl+Shift+F). Use Ctrl+Alt+F or similar.")
+      .addText((text) =>
+        text
+          .setPlaceholder("Ctrl+Alt+F")
+          .setValue(this.plugin.settings.searchShortcut)
+          .onChange(async (value) => {
+            this.plugin.settings.searchShortcut = value.trim() || "Ctrl+Alt+F";
+            await this.plugin.saveSettings();
           })
       );
 
@@ -280,5 +400,12 @@ export class TerminalSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           })
       );
+
+    // --- About ---
+    new Setting(containerEl).setName("About").setHeading();
+
+    new Setting(containerEl)
+      .setName("Plugin version")
+      .setDesc(`Lean Obsidian Terminal v${this.plugin.manifest.version}`);
   }
 }

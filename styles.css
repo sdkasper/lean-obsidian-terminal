@@ -201,6 +201,14 @@
   color: var(--text-normal);
 }
 
+.terminal-tab.dragging {
+  opacity: 0.4;
+}
+
+.terminal-tab.drag-over {
+  border-left: 2px solid var(--interactive-accent);
+}
+
 .terminal-tab.active {
   background: var(--background-primary);
   color: var(--text-normal);
@@ -356,16 +364,112 @@
   height: 100%;
 }
 
-/* Scrollbar styling */
+/* Scrollbar styling — display:block overrides Obsidian's global scrollbar hide */
 .terminal-session .xterm-viewport::-webkit-scrollbar {
+  display: block;
   width: 8px;
 }
 
 .terminal-session .xterm-viewport::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-thumb-bg);
+  background: var(--scrollbar-thumb-bg, rgba(128, 128, 128, 0.5));
   border-radius: 4px;
 }
 
 .terminal-session .xterm-viewport::-webkit-scrollbar-track {
   background: transparent;
+}
+
+/* Icon setting preview */
+.lean-terminal-icon-preview {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 8px;
+}
+
+.lean-terminal-icon-preview svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Drag-and-drop file path label */
+.terminal-drag-label {
+  position: fixed;
+  display: none;
+  padding: 4px 10px;
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+  border-radius: 4px;
+  font-size: 13px;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+.terminal-drag-label-visible {
+  display: block;
+}
+
+/* Search overlay */
+.lean-terminal-search-overlay {
+  display: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: var(--background-secondary);
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.lean-terminal-search-overlay--visible {
+  display: flex;
+}
+
+.lean-terminal-search-input {
+  flex: 1;
+  font-size: 12px;
+  padding: 2px 6px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 3px;
+  outline: none;
+}
+
+.lean-terminal-search-counter {
+  font-size: 11px;
+  color: var(--text-muted);
+  min-width: 60px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.lean-terminal-search-btn {
+  padding: 2px 6px;
+  font-size: 12px;
+  cursor: pointer;
+  background: var(--interactive-normal);
+  color: var(--text-normal);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 3px;
+  line-height: 1.4;
+}
+
+.lean-terminal-search-btn:hover {
+  background: var(--interactive-hover);
+}
+
+.lean-terminal-search-btn--active {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border-color: var(--interactive-accent);
+}
+
+/* Tab pinning */
+.terminal-tab-pin-icon {
+  font-size: 10px;
+  opacity: 0.8;
+  flex-shrink: 0;
 }
