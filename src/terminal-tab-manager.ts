@@ -13,10 +13,10 @@ import type { BinaryManager } from "./binary-manager";
 import type { IDisposable } from "@xterm/xterm";
 
 const SEARCH_DECORATIONS = {
-  matchBackground: "#ffff0040",
+  matchBackground: "#ffff00",
   matchBorder: "#ffff00",
   matchOverviewRuler: "#ffff00",
-  activeMatchBackground: "#ff000060",
+  activeMatchBackground: "#ff6600",
   activeMatchBorder: "#ff0000",
   activeMatchColorOverviewRuler: "#ff0000",
 } as const;
@@ -409,6 +409,7 @@ export class TerminalTabManager {
 
     const showSearch = () => {
       overlayEl.addClass("lean-terminal-search-overlay--visible");
+      if (searchInput.value) runSearch(true, true);
       searchInput.focus();
     };
 
