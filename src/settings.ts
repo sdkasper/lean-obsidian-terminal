@@ -17,6 +17,7 @@ export interface TerminalPluginSettings {
   notifyOnCompletion: boolean;
   notificationSound: NotificationSound;
   notificationVolume: number;
+  searchShortcut: string;
 }
 
 export const DEFAULT_SETTINGS: TerminalPluginSettings = {
@@ -33,6 +34,7 @@ export const DEFAULT_SETTINGS: TerminalPluginSettings = {
   notifyOnCompletion: false,
   notificationSound: "beep",
   notificationVolume: 50,
+  searchShortcut: "Ctrl+Shift+F",
 };
 
 export class TerminalSettingTab extends PluginSettingTab {
@@ -326,6 +328,19 @@ export class TerminalSettingTab extends PluginSettingTab {
               this.plugin.settings.scrollback = num;
               await this.plugin.saveSettings();
             }
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("Search shortcut")
+      .setDesc("Keyboard shortcut to open the in-terminal search bar (e.g. Ctrl+Shift+F)")
+      .addText((text) =>
+        text
+          .setPlaceholder("Ctrl+Shift+F")
+          .setValue(this.plugin.settings.searchShortcut)
+          .onChange(async (value) => {
+            this.plugin.settings.searchShortcut = value.trim() || "Ctrl+Shift+F";
+            await this.plugin.saveSettings();
           })
       );
 
