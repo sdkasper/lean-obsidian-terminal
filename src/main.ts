@@ -179,6 +179,12 @@ export default class TerminalPlugin extends Plugin {
 
   async loadSettings(): Promise<void> {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    // tabColors is the only array in settings. Object.assign is shallow,
+    // so on a fresh install (data.json has no tabColors) the merged
+    // settings would share the reference with DEFAULT_SETTINGS, and any
+    // push/filter mutation would leak into the module-level default.
+    // Deep-clone here so the default array stays immutable.
+    this.settings.tabColors = this.settings.tabColors.map((c) => ({ ...c }));
   }
 
   async saveSettings(): Promise<void> {

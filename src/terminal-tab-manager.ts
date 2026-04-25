@@ -212,13 +212,15 @@ function tintRatioForColor(color: string, settings: TerminalPluginSettings): num
   return (def?.tintStrength ?? DEFAULT_TINT_STRENGTH) / 100;
 }
 
-/** Theme with the per-session tab color mixed into the background. */
+/** Theme with the per-session tab color mixed into the background.
+ *  resolveTerminalTheme already returns a fresh object (ThemeRegistry.get
+ *  clones), so we mutate its background in place rather than spreading again. */
 function resolveSessionTheme(
   session: Pick<TerminalSession, "color">,
   settings: TerminalPluginSettings,
   registry: ThemeRegistry,
 ) {
-  const theme = { ...resolveTerminalTheme(settings, registry) };
+  const theme = resolveTerminalTheme(settings, registry);
   const ratio = tintRatioForColor(session.color, settings);
   if (ratio > 0 && theme.background) {
     theme.background = mixHex(theme.background, session.color, ratio);

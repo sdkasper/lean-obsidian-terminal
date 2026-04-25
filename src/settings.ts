@@ -77,7 +77,7 @@ export class TerminalSettingTab extends PluginSettingTab {
     container.createDiv({
       cls: "setting-item-description",
       text:
-        "Palette shown in each tab's right-click menu. Built-in colors can be retuned but not deleted or renamed. Tint strength is per-color (0-" +
+        "Palette shown in each tab's right-click menu. Built-in colors keep their name and hex, but their tint can be adjusted. Custom colors below can be fully edited (name, hex, tint) or deleted. Tint strength is per-color (0-" +
         MAX_TINT_STRENGTH +
         "%) so each color can be dialed to stay readable in the CLI it gets paired with.",
     });
