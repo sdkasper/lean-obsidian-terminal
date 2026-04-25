@@ -5,7 +5,7 @@
 // All keystrokes are intercepted at the xterm layer so the feature works
 // even inside TUIs (vim, claude-code, etc.).
 //
-// Ported from internetvin/internetvin-terminal (MIT © 2025 Vin Verma) — see NOTICE.
+// Ported from internetvin/internetvin-terminal (MIT (c) 2025 Vin Verma). See NOTICE.
 // Adapted for lean-obsidian-terminal: strict null checks, no `as any`,
 // explicit dispose(), isActive() accessor, renamed CSS hooks (`lean-`).
 
@@ -19,8 +19,8 @@ export interface AutocompleteEntry {
   folder: string;
   /**
    * Full vault-relative path including extension (e.g. `Folder/Note.md`,
-   * `Folder/Drawing.canvas`). Empty string for unresolved entries — they
-   * have no on-disk file yet, so path-mode insertion falls back to wikilink.
+   * `Folder/Drawing.canvas`). Empty string for unresolved entries (they
+   * have no on-disk file yet), so path-mode insertion falls back to wikilink.
    */
   path: string;
   isFile: boolean;
@@ -108,7 +108,7 @@ export class WikiLinkAutocomplete {
   /**
    * Call from the host's `terminal.onData` listener, before writing to the PTY.
    * Detects `[[` (consecutive or within a paste) and activates the dropdown.
-   * Never consumes data — the brackets still reach the shell so the user sees
+   * Never consumes data, the brackets still reach the shell so the user sees
    * their input echoed. The dropdown appears as an overlay.
    */
   handleData(data: string): void {
@@ -139,7 +139,7 @@ export class WikiLinkAutocomplete {
    */
   handleKey(e: KeyboardEvent): boolean {
     if (!this.active) return false;
-    // Only consume keydown — keypress / keyup must flow through so IME
+    // Only consume keydown. Keypress and keyup must flow through so IME
     // composition and other host listeners keep working while the dropdown
     // is open.
     if (e.type !== "keydown") return false;
@@ -181,9 +181,9 @@ export class WikiLinkAutocomplete {
           return true;
         }
         // Let any mod-combo (Ctrl+V, Cmd+C, Alt+...) fall through to the host
-        // handler — including Alt-based shortcuts (e.g. Alt+Tab, terminal Alt
+        // handler, including Alt-based shortcuts (e.g. Alt+Tab, terminal Alt
         // chords). Only unmodified keystrokes that didn't match the named cases
-        // above are non-character (function keys, etc.) — also let those through.
+        // above are non-character (function keys, etc.); also let those through.
         return !(e.metaKey || e.ctrlKey || e.altKey);
     }
   }
@@ -282,7 +282,7 @@ export class WikiLinkAutocomplete {
       // Late timer fires after dismiss/accept could otherwise resurrect the dropdown.
       if (!this.active) return;
       const q = this.query.toLowerCase();
-      // Cache snapshot once per activation — avoids O(#files) per keystroke.
+      // Cache snapshot once per activation, avoids O(#files) per keystroke.
       if (!this.cachedEntries) this.cachedEntries = this.getAllEntries();
       const all = this.cachedEntries;
 
