@@ -1,8 +1,16 @@
-// Linear sRGB color mixing in JS. We need this because xterm.js's
-// `theme.background` is a solid color string (hex or rgb), not a CSS
-// expression, so `color-mix(...)` can't be used there.
+// Naive 8-bit sRGB channel mixing for terminal background tinting.
 //
-// `mixHex("#1e1e1e", "#fc3634", 0.12)` → background tinted 12% toward tab color.
+// We need this because xterm.js's `theme.background` is a solid color
+// string (only hex is parsed here), not a CSS expression, so `color-mix(...)`
+// can't be used at the xterm layer.
+//
+// Mixing happens in gamma-encoded sRGB (not sRGB-linear) since the
+// difference at the small tint ratios used here (typically <= 0.30) is
+// imperceptible and gamma decode/encode would add cost without visible
+// gain.
+//
+// `mixHex("#1e1e1e", "#fc3634", 0.12)` returns "#1e1e1e" tinted 12% toward
+// the tab color.
 
 function parseHex(hex: string): [number, number, number] | null {
   const h = hex.trim().replace(/^#/, "");
