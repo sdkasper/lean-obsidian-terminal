@@ -547,14 +547,16 @@ export class TerminalTabManager {
     const ERASE_BRACKETS = "\x7f\x7f";
     const resolveInsertion = (entry: AutocompleteEntry | null, query: string): string => {
       const mode = this.settings.wikiLinkInsertMode;
-      if (entry?.isFile && (mode === "vault-path" || mode === "absolute-path")) {
-        const vaultPath = entry.folder ? `${entry.folder}/${entry.name}.md` : `${entry.name}.md`;
+      // entry.path holds the full vault-relative path with extension
+      // (e.g. "Folder/Note.md" or "Drawings/Sketch.canvas"). Path-mode
+      // insertion uses it directly so non-markdown notes work too.
+      if (entry?.isFile && entry.path && (mode === "vault-path" || mode === "absolute-path")) {
         if (mode === "vault-path") {
-          return `${ERASE_BRACKETS}${quotePath(vaultPath, pty.shellPath)}`;
+          return `${ERASE_BRACKETS}${quotePath(entry.path, pty.shellPath)}`;
         }
         const adapter = this.app.vault.adapter as FileSystemAdapter;
         const path = window.require("path") as { join: (...parts: string[]) => string; sep: string };
-        const abs = path.join(adapter.getBasePath(), vaultPath.split("/").join(path.sep));
+        const abs = path.join(adapter.getBasePath(), entry.path.split("/").join(path.sep));
         return `${ERASE_BRACKETS}${quotePath(abs, pty.shellPath)}`;
       }
       // Wiki-link mode (default) and unresolved/empty fallbacks.

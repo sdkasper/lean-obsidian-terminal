@@ -13,8 +13,16 @@ import { App, TFile } from "obsidian";
 import type { Terminal, IDisposable } from "@xterm/xterm";
 
 export interface AutocompleteEntry {
+  /** Display name (file basename, without extension). */
   name: string;
+  /** Display folder (parent path, "" for vault root). */
   folder: string;
+  /**
+   * Full vault-relative path including extension (e.g. `Folder/Note.md`,
+   * `Folder/Drawing.canvas`). Empty string for unresolved entries — they
+   * have no on-disk file yet, so path-mode insertion falls back to wikilink.
+   */
+  path: string;
   isFile: boolean;
   mtime: number;
 }
@@ -70,6 +78,10 @@ export class WikiLinkAutocomplete {
   private previewEl: HTMLElement | null = null;
   private filterTimer: ReturnType<typeof setTimeout> | null = null;
   private resizeDisposable: IDisposable | null = null;
+  /** Snapshot of vault entries taken on activate(); avoids O(#files) per keystroke. */
+  private cachedEntries: AutocompleteEntry[] | null = null;
+  /** Monotonic token; renderPreview discards results whose token is stale. */
+  private previewToken = 0;
 
   constructor(
     app: App,
@@ -127,7 +139,10 @@ export class WikiLinkAutocomplete {
    */
   handleKey(e: KeyboardEvent): boolean {
     if (!this.active) return false;
-    if (e.type !== "keydown") return true;
+    // Only consume keydown — keypress / keyup must flow through so IME
+    // composition and other host listeners keep working while the dropdown
+    // is open.
+    if (e.type !== "keydown") return false;
 
     switch (e.key) {
       case "ArrowUp":
@@ -165,8 +180,11 @@ export class WikiLinkAutocomplete {
           this.filterResults();
           return true;
         }
-        // Let mod-combos (Ctrl+V paste, etc.) fall through to the host handler.
-        return !(e.metaKey || e.ctrlKey);
+        // Let any mod-combo (Ctrl+V, Cmd+C, Alt+...) fall through to the host
+        // handler — including Alt-based shortcuts (e.g. Alt+Tab, terminal Alt
+        // chords). Only unmodified keystrokes that didn't match the named cases
+        // above are non-character (function keys, etc.) — also let those through.
+        return !(e.metaKey || e.ctrlKey || e.altKey);
     }
   }
 
@@ -187,6 +205,9 @@ export class WikiLinkAutocomplete {
     this.query = "";
     this.results = [];
     this.selectedIndex = 0;
+    // Refresh the entry cache on each activation so newly created notes
+    // appear without restarting the terminal session.
+    this.cachedEntries = null;
     this.filterResults();
   }
 
@@ -209,33 +230,45 @@ export class WikiLinkAutocomplete {
     this.query = "";
     this.results = [];
     this.selectedIndex = 0;
+    this.cachedEntries = null;
+    if (this.filterTimer) {
+      clearTimeout(this.filterTimer);
+      this.filterTimer = null;
+    }
     this.removeDropdown();
   }
 
+  /**
+   * Builds the full entry list from the vault. Files are deduped by full
+   * path (not basename) so notes with identical names in different folders
+   * both appear. Unresolved targets that don't already correspond to a
+   * file's basename are added with `isFile: false` and an empty path.
+   */
   private getAllEntries(): AutocompleteEntry[] {
     const entries: AutocompleteEntry[] = [];
-    const seen = new Set<string>();
+    const fileBasenames = new Set<string>();
 
     for (const f of this.app.vault.getFiles()) {
       entries.push({
         name: f.basename,
         folder: f.parent?.path ?? "",
+        path: f.path,
         isFile: true,
         mtime: f.stat.mtime,
       });
-      seen.add(f.basename.toLowerCase());
+      fileBasenames.add(f.basename.toLowerCase());
     }
 
     const internal = this.app.metadataCache as unknown as MetadataCacheInternal;
     const unresolved = internal.unresolvedLinks;
     if (unresolved) {
+      const seenUnresolved = new Set<string>();
       for (const sourceFile of Object.values(unresolved)) {
         for (const linkTarget of Object.keys(sourceFile)) {
           const key = linkTarget.toLowerCase();
-          if (!seen.has(key)) {
-            seen.add(key);
-            entries.push({ name: linkTarget, folder: "", isFile: false, mtime: 0 });
-          }
+          if (fileBasenames.has(key) || seenUnresolved.has(key)) continue;
+          seenUnresolved.add(key);
+          entries.push({ name: linkTarget, folder: "", path: "", isFile: false, mtime: 0 });
         }
       }
     }
@@ -246,8 +279,12 @@ export class WikiLinkAutocomplete {
   private filterResults(): void {
     if (this.filterTimer) clearTimeout(this.filterTimer);
     this.filterTimer = setTimeout(() => {
+      // Late timer fires after dismiss/accept could otherwise resurrect the dropdown.
+      if (!this.active) return;
       const q = this.query.toLowerCase();
-      const all = this.getAllEntries();
+      // Cache snapshot once per activation — avoids O(#files) per keystroke.
+      if (!this.cachedEntries) this.cachedEntries = this.getAllEntries();
+      const all = this.cachedEntries;
 
       if (q.length === 0) {
         this.results = [...all].sort((a, b) => b.mtime - a.mtime).slice(0, MAX_RESULTS);
@@ -354,25 +391,32 @@ export class WikiLinkAutocomplete {
 
   private async renderPreview(): Promise<void> {
     const entry = this.results[this.selectedIndex];
-    if (!entry || !entry.isFile) {
+    if (!entry || !entry.isFile || !entry.path) {
       this.removePreview();
       return;
     }
+
+    // Capture a token before any await; if selection changes while we're
+    // reading the file, a later renderPreview() will bump the token and
+    // we'll discard our stale result on resume.
+    const token = ++this.previewToken;
 
     if (!this.previewEl) {
       this.previewEl = this.containerEl.createDiv({ cls: "lean-wikilink-preview" });
     }
     this.positionPreview();
 
-    const path = entry.folder ? `${entry.folder}/${entry.name}.md` : `${entry.name}.md`;
-    const file = this.app.vault.getAbstractFileByPath(path);
+    const file = this.app.vault.getAbstractFileByPath(entry.path);
     if (!(file instanceof TFile)) {
+      if (token !== this.previewToken || !this.previewEl) return;
       this.previewEl.empty();
       this.previewEl.createDiv({ cls: "lean-preview-empty", text: "File not found" });
       return;
     }
 
     const content = await this.app.vault.cachedRead(file);
+    if (token !== this.previewToken || !this.previewEl) return;
+
     const preview = content.split("\n").slice(0, PREVIEW_LINES).join("\n");
 
     const cache = this.app.metadataCache.getFileCache(file);
