@@ -6,8 +6,8 @@ export type NotificationSound = "beep" | "chime" | "ping" | "pop";
 /**
  * How an accepted wiki-link suggestion is written to the shell.
  * - "wikilink": classic `[[Note Name]]` (default, vault-friendly).
- * - "vault-path": vault-relative path (`Folder/Note.md`) — for tools that resolve from the vault root.
- * - "absolute-path": absolute filesystem path — useful when piping to CLI tools (Claude Code,
+ * - "vault-path": vault-relative path (`Folder/Note.md`), for tools that resolve from the vault root.
+ * - "absolute-path": absolute filesystem path. Useful when piping to CLI tools (Claude Code,
  *   ripgrep, cat, etc.) that expect a real file path argument rather than a wikilink.
  */
 export type WikiLinkInsertMode = "wikilink" | "vault-path" | "absolute-path";
