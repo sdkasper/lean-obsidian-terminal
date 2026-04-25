@@ -3,22 +3,67 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { SerializeAddon } from "@xterm/addon-serialize";
+import type { IDisposable } from "@xterm/xterm";
 import { PtyManager } from "./pty-manager";
 import { getTheme } from "./themes";
+import { mixHex } from "./color-utils";
+import { findTabColor, DEFAULT_TINT_STRENGTH } from "./tab-colors";
 import type { TerminalPluginSettings } from "./settings";
 import type { NotificationSound } from "./settings";
 import type { BinaryManager } from "./binary-manager";
 import type { SavedTab } from "./session-state";
 
-export const TAB_COLORS = [
-  { name: "None", value: "" },
-  { name: "Red", value: "#e54d4d" },
-  { name: "Orange", value: "#e8a838" },
-  { name: "Yellow", value: "#e5d74e" },
-  { name: "Green", value: "#4ec955" },
-  { name: "Blue", value: "#4e9de5" },
-  { name: "Purple", value: "#b04ee5" },
-] as const;
+const SEARCH_DECORATIONS = {
+  matchBackground: "#ffff00",
+  matchBorder: "#ffff00",
+  matchOverviewRuler: "#ffff00",
+  activeMatchBackground: "#ff6600",
+  activeMatchBorder: "#ff0000",
+  activeMatchColorOverviewRuler: "#ff0000",
+} as const;
+
+interface ParsedShortcut {
+  ctrl: boolean;
+  shift: boolean;
+  alt: boolean;
+  meta: boolean;
+  key: string;
+}
+
+function parseShortcut(s: string): ParsedShortcut | null {
+  if (!s.trim()) return null;
+  const parts = s.split("+");
+  const key = parts[parts.length - 1];
+  const lower = parts.map((p) => p.toLowerCase());
+  return {
+    ctrl: lower.includes("ctrl"),
+    shift: lower.includes("shift"),
+    alt: lower.includes("alt"),
+    meta: lower.includes("meta") || lower.includes("cmd"),
+    key,
+  };
+}
+
+function matchesShortcut(e: KeyboardEvent, shortcut: string): boolean {
+  const p = parseShortcut(shortcut);
+  if (!p) return false;
+  return (
+    e.ctrlKey === p.ctrl &&
+    e.shiftKey === p.shift &&
+    e.altKey === p.alt &&
+    e.metaKey === p.meta &&
+    e.key.toLowerCase() === p.key.toLowerCase()
+  );
+}
+
+const SEARCH_DECORATIONS = {
+  matchBackground: "#ffff00",
+  matchBorder: "#ffff00",
+  matchOverviewRuler: "#ffff00",
+  activeMatchBackground: "#ff6600",
+  activeMatchBorder: "#ff0000",
+  activeMatchColorOverviewRuler: "#ff0000",
+} as const;
 
 export interface TerminalSession {
   id: string;
@@ -125,6 +170,161 @@ function playNotificationSound(sound: NotificationSound, volume: number): void {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Terminal color reporting helpers (OSC 10/11, Mode 2031)
+// ---------------------------------------------------------------------------
+
+const ESC = "\x1b";
+const BEL = "\x07";
+const HEX6_RE = /^#[0-9a-fA-F]{6}$/;
+
+/** Convert "#RRGGBB" hex to X11 "rgb:RRRR/GGGG/BBBB" (16-bit per component). */
+function hexToX11(hex: string): string {
+  if (!HEX6_RE.test(hex)) return "rgb:0000/0000/0000";
+  const r = hex.slice(1, 3);
+  const g = hex.slice(3, 5);
+  const b = hex.slice(5, 7);
+  return `rgb:${r}${r}/${g}${g}/${b}${b}`;
+}
+
+/** Get the effective foreground color for a session. */
+function sessionForeground(session: TerminalSession): string {
+  return (session.terminal.options.theme?.foreground) || "#d4d4d4";
+}
+
+/** Get the effective background color for a session. */
+function sessionBackground(session: TerminalSession): string {
+  return (session.terminal.options.theme?.background) || "#1e1e1e";
+}
+
+function resolveTerminalTheme(settings: TerminalPluginSettings, registry: ThemeRegistry) {
+  const theme = registry.get(settings.theme);
+  if (settings.backgroundColor) {
+    theme.background = settings.backgroundColor;
+  }
+  return theme;
+}
+
+/** Percent (0..MAX_TINT_STRENGTH) used to mix `color` into the terminal background. */
+function tintRatioForColor(color: string, settings: TerminalPluginSettings): number {
+  if (!color || !settings.tabColorTintsBackground) return 0;
+  const def = findTabColor(settings.tabColors, color);
+  return (def?.tintStrength ?? DEFAULT_TINT_STRENGTH) / 100;
+}
+
+/** Theme with the per-session tab color mixed into the background. */
+function resolveSessionTheme(
+  session: Pick<TerminalSession, "color">,
+  settings: TerminalPluginSettings,
+  registry: ThemeRegistry,
+) {
+  const theme = { ...resolveTerminalTheme(settings, registry) };
+  const ratio = tintRatioForColor(session.color, settings);
+  if (ratio > 0 && theme.background) {
+    theme.background = mixHex(theme.background, session.color, ratio);
+  }
+  return theme;
+}
+
+/**
+ * Register OSC 10/11 query handlers and Mode 2031 / CSI ?996n handlers
+ * on a terminal session. Responses are written back to the PTY so the child
+ * app reads them from stdin — matching real terminal behavior.
+ */
+function registerColorReporting(session: TerminalSession): void {
+  const { terminal, pty } = session;
+  const d: IDisposable[] = session.parserDisposables;
+
+  // --- OSC 10 ; ? — query default foreground color ---
+  d.push(terminal.parser.registerOscHandler(10, (data: string) => {
+    if (data !== "?") return false; // not a query, let default handler run
+    const color = hexToX11(sessionForeground(session));
+    pty.write(`${ESC}]10;${color}${BEL}`);
+    return true;
+  }));
+
+  // --- OSC 11 ; ? — query default background color ---
+  d.push(terminal.parser.registerOscHandler(11, (data: string) => {
+    if (data !== "?") return false;
+    const color = hexToX11(sessionBackground(session));
+    pty.write(`${ESC}]11;${color}${BEL}`);
+    return true;
+  }));
+
+  // --- CSI ? 996 n — one-shot dark/light mode query ---
+  d.push(terminal.parser.registerCsiHandler({ prefix: "?", final: "n" }, (params) => {
+    if (params[0] !== 996) return false;
+    const mode = isObsidianDark() ? 1 : 2; // 1 = dark, 2 = light
+    pty.write(`${ESC}[?997;${mode}n`);
+    return true;
+  }));
+
+  // --- CSI ? 2031 h — enable Mode 2031 (color-scheme-change notifications) ---
+  d.push(terminal.parser.registerCsiHandler({ prefix: "?", final: "h" }, (params) => {
+    if (params[0] !== 2031) return false;
+    session.mode2031 = true;
+    return true;
+  }));
+
+  // --- CSI ? 2031 l — disable Mode 2031 ---
+  d.push(terminal.parser.registerCsiHandler({ prefix: "?", final: "l" }, (params) => {
+    if (params[0] !== 2031) return false;
+    session.mode2031 = false;
+    return true;
+  }));
+}
+
+function quotePath(rawPath: string, shellPath: string): string {
+  if (!rawPath.includes(' ')) return rawPath;
+  const lower = shellPath.toLowerCase();
+  if (lower.includes('bash') || lower.includes('zsh') || lower.includes('sh')) {
+    return `'${rawPath}'`;
+  }
+  return `"${rawPath}"`;
+}
+
+interface ElectronFile extends File { path?: string; }
+interface ObsidianAppInternal extends App {
+  dragManager?: { draggable?: { file?: { path: string } } };
+}
+
+function extractDropPath(e: DragEvent, app: App): string | null {
+  // OS file drag via text/uri-list (file:// URLs in Electron)
+  const uriList = e.dataTransfer?.getData('text/uri-list');
+  if (uriList) {
+    const uri = uriList.split('\n')[0].trim();
+    if (uri.startsWith('file://')) {
+      const path = window.require('url').fileURLToPath(uri);
+      return path;
+    }
+  }
+
+  // OS file drag via dataTransfer.files — use Electron webUtils (Electron 32+) with .path fallback
+  if (e.dataTransfer?.files.length) {
+    const file = e.dataTransfer.files[0];
+    try {
+      const { webUtils } = window.require('electron') as { webUtils: { getPathForFile: (file: File) => string } };
+      const p = webUtils.getPathForFile(file);
+      if (p) return p;
+    } catch {
+      const p = (file as ElectronFile).path;
+      if (p) return p;
+    }
+  }
+
+  // Obsidian internal file drag
+  const draggable = (app as ObsidianAppInternal).dragManager?.draggable;
+  if (draggable?.file) {
+    const basePath = (app.vault.adapter as FileSystemAdapter).getBasePath();
+    const vaultPath = draggable.file.path.split('/').join(window.require('path').sep);
+    const fullPath = window.require('path').join(basePath, vaultPath);
+    return fullPath;
+  }
+
+  return null;
+}
+
+>>>>>>> 9d8db06 (feat: per-tab color tint with editable palette)
 export class TerminalTabManager {
   private sessions: TerminalSession[] = [];
   private activeId: string | null = null;
@@ -552,7 +752,7 @@ export class TerminalTabManager {
     menu.createDiv({ cls: "terminal-ctx-item terminal-ctx-color-label", text: "Color" });
     const colorRow = menu.createDiv({ cls: "terminal-ctx-color-row" });
 
-    for (const c of TAB_COLORS) {
+    for (const c of this.settings.tabColors) {
       const swatch = colorRow.createDiv({ cls: "terminal-ctx-swatch" });
       if (c.value) {
         swatch.style.background = c.value;
@@ -565,6 +765,9 @@ export class TerminalTabManager {
       swatch.title = c.name;
       swatch.addEventListener("click", () => {
         session.color = c.value;
+        // Picking a new color reapplies the session theme so a tinted
+        // background reflects the new swatch immediately.
+        session.terminal.options.theme = resolveSessionTheme(session, this.settings, this.themeRegistry);
         this.renderTabBar();
         this.requestSaveLayout?.();
         menu.remove();
@@ -584,12 +787,22 @@ export class TerminalTabManager {
   }
 
   updateBackgroundColor(): void {
-    const theme = getTheme(this.settings.theme);
-    if (this.settings.backgroundColor) {
-      theme.background = this.settings.backgroundColor;
-    }
     for (const session of this.sessions) {
-      session.terminal.options.theme = { ...session.terminal.options.theme, background: theme.background };
+      session.terminal.options.theme = resolveSessionTheme(session, this.settings, this.themeRegistry);
+    }
+  }
+
+  /** Re-apply the full theme to all sessions (used when Obsidian switches dark/light). */
+  updateTheme(): void {
+    const isDark = isObsidianDark();
+    for (const session of this.sessions) {
+      session.terminal.options.theme = resolveSessionTheme(session, this.settings, this.themeRegistry);
+
+      // Notify child apps that opted into Mode 2031 color-scheme-change updates
+      if (session.mode2031) {
+        const mode = isDark ? 1 : 2; // 1 = dark, 2 = light
+        session.pty.write(`${ESC}[?997;${mode}n`);
+      }
     }
   }
 
@@ -601,14 +814,19 @@ export class TerminalTabManager {
     this.tabBarEl.empty();
 
     for (const session of this.sessions) {
-      const tab = this.tabBarEl.createDiv({
-        cls: `terminal-tab${session.id === this.activeId ? " active" : ""}`,
-      });
+      const classes = ["terminal-tab"];
+      if (session.id === this.activeId) classes.push("active");
+      if (session.pinned) classes.push("terminal-tab--pinned");
+      if (session.color) classes.push("terminal-tab--colored");
+      const tab = this.tabBarEl.createDiv({ cls: classes.join(" ") });
 
-      // Apply tab color as left border + active highlight
+      // Tab color drives two CSS variables. All visual rules (border + tinted
+      // fill across idle/hover/active states) live in styles.css so we don't
+      // hardcode opacity values here.
       if (session.color) {
-        tab.style.borderLeft = `3px solid ${session.color}`;
         tab.style.setProperty("--tab-accent", session.color);
+        const def = findTabColor(this.settings.tabColors, session.color);
+        tab.style.setProperty("--tab-color-intensity", String(def?.tintStrength ?? DEFAULT_TINT_STRENGTH));
       }
 
       const label = tab.createSpan({ cls: "terminal-tab-label", text: session.name });
