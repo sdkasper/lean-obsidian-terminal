@@ -1,0 +1,22 @@
+lean-obsidian-terminal
+======================
+
+This project incorporates the wiki-link autocomplete feature adapted from
+internetvin/internetvin-terminal:
+
+    https://github.com/internetvin/internetvin-terminal
+    MIT License
+    Copyright (c) 2025 Vin Verma
+
+The port lives in src/wikilink-autocomplete.ts, with cooperative hooks added
+in src/terminal-tab-manager.ts and supporting CSS appended to styles.css
+(class names renamed from `.vin-*` to `.lean-*`).
+
+Adaptations applied while porting:
+  - Strict null checks / `noImplicitAny` compliance
+  - `as any` removed; replaced with typed `MetadataCacheInternal` view
+  - `isActive()` accessor + explicit `dispose()` added for lean's
+    session-lifecycle contract
+  - `handleKey()` composition with lean's existing custom key-event handler
+  - Unresolved-link and frontmatter-tag handling hardened against string |
+    string[] | undefined shapes
