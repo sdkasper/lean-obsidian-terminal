@@ -473,3 +473,44 @@
   opacity: 0.8;
   flex-shrink: 0;
 }
+
+/* --- Per-tab colored fill ------------------------------------------- */
+/* --tab-accent (hex) and --tab-color-intensity (0..MAX, e.g. 12) come
+   from the tab-manager and drive idle/hover/active fill density. The
+   multiplier (1.5/2.2/2.7) lets users keep the same numeric intensity
+   value while idle/hover/active stay visually distinct. */
+.terminal-tab--colored {
+  background: color-mix(
+    in srgb,
+    var(--tab-accent) calc(var(--tab-color-intensity) * 1.5%),
+    transparent
+  );
+  border-left: 3px solid var(--tab-accent);
+}
+
+.terminal-tab--colored:hover {
+  background: color-mix(
+    in srgb,
+    var(--tab-accent) calc(var(--tab-color-intensity) * 2.2%),
+    var(--background-modifier-hover)
+  );
+}
+
+.terminal-tab--colored.active {
+  background: color-mix(
+    in srgb,
+    var(--tab-accent) calc(var(--tab-color-intensity) * 2.7%),
+    var(--background-primary)
+  );
+}
+
+/* Settings palette swatch chip */
+.lean-color-swatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  margin-right: 8px;
+  vertical-align: middle;
+  border: 1px solid var(--background-modifier-border);
+}

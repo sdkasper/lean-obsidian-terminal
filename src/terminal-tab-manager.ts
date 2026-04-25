@@ -11,6 +11,8 @@ import type { TerminalPluginSettings } from "./settings";
 import type { NotificationSound } from "./settings";
 import type { BinaryManager } from "./binary-manager";
 import type { IDisposable } from "@xterm/xterm";
+import { mixHex } from "./color-utils";
+import { findTabColor, DEFAULT_TINT_STRENGTH } from "./tab-colors";
 
 const SEARCH_DECORATIONS = {
   matchBackground: "#ffff00",
@@ -54,16 +56,6 @@ function matchesShortcut(e: KeyboardEvent, shortcut: string): boolean {
     e.key.toLowerCase() === p.key.toLowerCase()
   );
 }
-
-export const TAB_COLORS = [
-  { name: "None", value: "" },
-  { name: "Vermilion", value: "#FC3634" },
-  { name: "Sky Blue", value: "#25D0F7" },
-  { name: "Gold", value: "#FFD700" },
-  { name: "Mint", value: "#18BC9C" },
-  { name: "Azure", value: "#007BFF" },
-  { name: "Purple", value: "#A991D4" },
-] as const;
 
 export interface TerminalSession {
   id: string;
@@ -196,6 +188,27 @@ function resolveTerminalTheme(settings: TerminalPluginSettings, registry: ThemeR
   const theme = registry.get(settings.theme);
   if (settings.backgroundColor) {
     theme.background = settings.backgroundColor;
+  }
+  return theme;
+}
+
+/** Percent (0..MAX_TINT_STRENGTH) used to mix `color` into the terminal background. */
+function tintRatioForColor(color: string, settings: TerminalPluginSettings): number {
+  if (!color || !settings.tabColorTintsBackground) return 0;
+  const def = findTabColor(settings.tabColors, color);
+  return (def?.tintStrength ?? DEFAULT_TINT_STRENGTH) / 100;
+}
+
+/** Theme with the per-session tab color mixed into the background. */
+function resolveSessionTheme(
+  session: Pick<TerminalSession, "color">,
+  settings: TerminalPluginSettings,
+  registry: ThemeRegistry,
+) {
+  const theme = { ...resolveTerminalTheme(settings, registry) };
+  const ratio = tintRatioForColor(session.color, settings);
+  if (ratio > 0 && theme.background) {
+    theme.background = mixHex(theme.background, session.color, ratio);
   }
   return theme;
 }
@@ -770,7 +783,7 @@ export class TerminalTabManager {
     menu.createDiv({ cls: "terminal-ctx-item terminal-ctx-color-label", text: "Color" });
     const colorRow = menu.createDiv({ cls: "terminal-ctx-color-row" });
 
-    for (const c of TAB_COLORS) {
+    for (const c of this.settings.tabColors) {
       const swatch = colorRow.createDiv({ cls: "terminal-ctx-swatch" });
       if (c.value) {
         swatch.style.background = c.value;
@@ -783,6 +796,9 @@ export class TerminalTabManager {
       swatch.title = c.name;
       swatch.addEventListener("click", () => {
         session.color = c.value;
+        // Picking a new color reapplies the session theme so a tinted
+        // background reflects the new swatch immediately.
+        session.terminal.options.theme = resolveSessionTheme(session, this.settings, this.themeRegistry);
         this.renderTabBar();
         menu.remove();
       });
@@ -801,18 +817,16 @@ export class TerminalTabManager {
   }
 
   updateBackgroundColor(): void {
-    const theme = resolveTerminalTheme(this.settings, this.themeRegistry);
     for (const session of this.sessions) {
-      session.terminal.options.theme = theme;
+      session.terminal.options.theme = resolveSessionTheme(session, this.settings, this.themeRegistry);
     }
   }
 
   /** Re-apply the full theme to all sessions (used when Obsidian switches dark/light). */
   updateTheme(): void {
-    const theme = resolveTerminalTheme(this.settings, this.themeRegistry);
     const isDark = isObsidianDark();
     for (const session of this.sessions) {
-      session.terminal.options.theme = theme;
+      session.terminal.options.theme = resolveSessionTheme(session, this.settings, this.themeRegistry);
 
       // Notify child apps that opted into Mode 2031 color-scheme-change updates
       if (session.mode2031) {
@@ -830,14 +844,19 @@ export class TerminalTabManager {
     this.tabBarEl.empty();
 
     for (const session of this.sessions) {
-      const tab = this.tabBarEl.createDiv({
-        cls: `terminal-tab${session.id === this.activeId ? " active" : ""}${session.pinned ? " terminal-tab--pinned" : ""}`,
-      });
+      const classes = ["terminal-tab"];
+      if (session.id === this.activeId) classes.push("active");
+      if (session.pinned) classes.push("terminal-tab--pinned");
+      if (session.color) classes.push("terminal-tab--colored");
+      const tab = this.tabBarEl.createDiv({ cls: classes.join(" ") });
 
-      // Apply tab color as left border + active highlight
+      // Tab color drives two CSS variables. All visual rules (border + tinted
+      // fill across idle/hover/active states) live in styles.css so we don't
+      // hardcode opacity values here.
       if (session.color) {
-        tab.style.borderLeft = `3px solid ${session.color}`;
         tab.style.setProperty("--tab-accent", session.color);
+        const def = findTabColor(this.settings.tabColors, session.color);
+        tab.style.setProperty("--tab-color-intensity", String(def?.tintStrength ?? DEFAULT_TINT_STRENGTH));
       }
 
       if (session.pinned) {

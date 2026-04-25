@@ -1,5 +1,11 @@
 import { App, ColorComponent, DropdownComponent, Notice, PluginSettingTab, Setting, setIcon } from "obsidian";
 import type TerminalPlugin from "./main";
+import {
+  DEFAULT_TAB_COLORS,
+  DEFAULT_TINT_STRENGTH,
+  MAX_TINT_STRENGTH,
+  type TabColorDef,
+} from "./tab-colors";
 
 export type NotificationSound = "beep" | "chime" | "ping" | "pop";
 
@@ -18,6 +24,8 @@ export interface TerminalPluginSettings {
   notificationSound: NotificationSound;
   notificationVolume: number;
   searchShortcut: string;
+  tabColorTintsBackground: boolean;
+  tabColors: TabColorDef[];
 }
 
 export const DEFAULT_SETTINGS: TerminalPluginSettings = {
@@ -35,14 +43,173 @@ export const DEFAULT_SETTINGS: TerminalPluginSettings = {
   notificationSound: "beep",
   notificationVolume: 50,
   searchShortcut: "Ctrl+Alt+F",
+  tabColorTintsBackground: true,
+  tabColors: DEFAULT_TAB_COLORS.map((c) => ({ ...c })),
 };
 
 export class TerminalSettingTab extends PluginSettingTab {
   plugin: TerminalPlugin;
+  private pendingNewColorName = "";
+  private pendingNewColorHex = "#888888";
 
   constructor(app: App, plugin: TerminalPlugin) {
     super(app, plugin);
     this.plugin = plugin;
+  }
+
+  private renderTabColorsSection(container: HTMLElement): void {
+    new Setting(container).setName("Tab colors").setHeading();
+
+    container.createDiv({
+      cls: "setting-item-description",
+      text:
+        "Palette shown in each tab's right-click menu. Built-in colors can be retuned but not deleted or renamed. Tint strength is per-color (0-" +
+        MAX_TINT_STRENGTH +
+        "%) so each color can be dialed to stay readable in the CLI it gets paired with.",
+    });
+
+    for (const color of this.plugin.settings.tabColors) {
+      if (!color.value) continue; // skip "None"
+      this.renderTabColorRow(container, color);
+    }
+
+    this.renderAddColorRow(container);
+
+    new Setting(container)
+      .addButton((btn) =>
+        btn
+          .setButtonText("Reset palette to defaults")
+          .setWarning()
+          .onClick(async () => {
+            this.plugin.settings.tabColors = DEFAULT_TAB_COLORS.map((c) => ({ ...c }));
+            await this.plugin.saveSettings();
+            this.plugin.updateTerminalBackgrounds();
+            this.display();
+          }),
+      );
+  }
+
+  private renderTabColorRow(container: HTMLElement, color: TabColorDef): void {
+    const row = new Setting(container);
+
+    const swatch = row.nameEl.createSpan({ cls: "lean-color-swatch" });
+    swatch.style.background = color.value;
+    row.nameEl.createSpan({ text: color.name });
+    row.setDesc(color.builtin ? `${color.value} - built-in` : color.value);
+
+    if (!color.builtin) {
+      row.addText((text) =>
+        text
+          .setPlaceholder("Name")
+          .setValue(color.name)
+          .onChange(async (value) => {
+            const trimmed = value.trim();
+            if (!trimmed) return;
+            if (
+              this.plugin.settings.tabColors.some((c) => c !== color && c.name === trimmed)
+            ) {
+              return;
+            }
+            color.name = trimmed;
+            await this.plugin.saveSettings();
+          }),
+      );
+
+      row.addColorPicker((picker) =>
+        picker.setValue(color.value).onChange(async (value) => {
+          color.value = value;
+          await this.plugin.saveSettings();
+          this.plugin.updateTerminalBackgrounds();
+          swatch.style.background = value;
+        }),
+      );
+    }
+
+    row.addSlider((slider) =>
+      slider
+        .setLimits(0, MAX_TINT_STRENGTH, 1)
+        .setValue(color.tintStrength)
+        .setDynamicTooltip()
+        .onChange(async (value) => {
+          color.tintStrength = value;
+          await this.plugin.saveSettings();
+          this.plugin.updateTerminalBackgrounds();
+        }),
+    );
+
+    if (color.builtin) {
+      row.addButton((btn) =>
+        btn
+          .setButtonText("Reset")
+          .setTooltip("Reset tint to default")
+          .onClick(async () => {
+            color.tintStrength = DEFAULT_TINT_STRENGTH;
+            await this.plugin.saveSettings();
+            this.plugin.updateTerminalBackgrounds();
+            this.display();
+          }),
+      );
+    } else {
+      row.addExtraButton((btn) =>
+        btn
+          .setIcon("trash")
+          .setTooltip("Delete color")
+          .onClick(async () => {
+            this.plugin.settings.tabColors = this.plugin.settings.tabColors.filter(
+              (c) => c !== color,
+            );
+            await this.plugin.saveSettings();
+            this.plugin.updateTerminalBackgrounds();
+            this.display();
+          }),
+      );
+    }
+  }
+
+  private renderAddColorRow(container: HTMLElement): void {
+    const setting = new Setting(container).setName("Add custom color");
+
+    setting.addText((text) =>
+      text
+        .setPlaceholder("Name")
+        .setValue(this.pendingNewColorName)
+        .onChange((value) => {
+          this.pendingNewColorName = value;
+        }),
+    );
+
+    setting.addColorPicker((picker) =>
+      picker.setValue(this.pendingNewColorHex).onChange((value) => {
+        this.pendingNewColorHex = value;
+      }),
+    );
+
+    setting.addButton((btn) =>
+      btn
+        .setButtonText("Add")
+        .setCta()
+        .onClick(async () => {
+          const name = this.pendingNewColorName.trim();
+          if (!name) {
+            new Notice("Color name is required.");
+            return;
+          }
+          if (this.plugin.settings.tabColors.some((c) => c.name === name)) {
+            new Notice("A color with that name already exists.");
+            return;
+          }
+          this.plugin.settings.tabColors.push({
+            name,
+            value: this.pendingNewColorHex,
+            tintStrength: DEFAULT_TINT_STRENGTH,
+            builtin: false,
+          });
+          this.pendingNewColorName = "";
+          this.pendingNewColorHex = "#888888";
+          await this.plugin.saveSettings();
+          this.display();
+        }),
+    );
   }
 
   display(): void {
@@ -296,6 +463,19 @@ export class TerminalSettingTab extends PluginSettingTab {
         this.plugin.updateTerminalBackgrounds();
       });
     });
+
+    new Setting(containerEl)
+      .setName("Tab color tints terminal background")
+      .setDesc("Mix a colored tab's swatch into the terminal background. Per-color tint strength is configured below.")
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.tabColorTintsBackground).onChange(async (value) => {
+          this.plugin.settings.tabColorTintsBackground = value;
+          await this.plugin.saveSettings();
+          this.plugin.updateTerminalBackgrounds();
+        }),
+      );
+
+    this.renderTabColorsSection(containerEl);
 
     new Setting(containerEl)
       .setName("Cursor blink")
