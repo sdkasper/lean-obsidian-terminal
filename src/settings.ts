@@ -3,6 +3,15 @@ import type TerminalPlugin from "./main";
 
 export type NotificationSound = "beep" | "chime" | "ping" | "pop";
 
+/**
+ * How an accepted wiki-link suggestion is written to the shell.
+ * - "wikilink": classic `[[Note Name]]` (default, vault-friendly).
+ * - "vault-path": vault-relative path (`Folder/Note.md`) — for tools that resolve from the vault root.
+ * - "absolute-path": absolute filesystem path — useful when piping to CLI tools (Claude Code,
+ *   ripgrep, cat, etc.) that expect a real file path argument rather than a wikilink.
+ */
+export type WikiLinkInsertMode = "wikilink" | "vault-path" | "absolute-path";
+
 export interface TerminalPluginSettings {
   shellPath: string;
   fontSize: number;
@@ -18,6 +27,8 @@ export interface TerminalPluginSettings {
   notificationSound: NotificationSound;
   notificationVolume: number;
   searchShortcut: string;
+  wikiLinkAutocomplete: boolean;
+  wikiLinkInsertMode: WikiLinkInsertMode;
 }
 
 export const DEFAULT_SETTINGS: TerminalPluginSettings = {
@@ -35,6 +46,8 @@ export const DEFAULT_SETTINGS: TerminalPluginSettings = {
   notificationSound: "beep",
   notificationVolume: 50,
   searchShortcut: "Ctrl+Alt+F",
+  wikiLinkAutocomplete: false,
+  wikiLinkInsertMode: "wikilink",
 };
 
 export class TerminalSettingTab extends PluginSettingTab {
@@ -316,6 +329,34 @@ export class TerminalSettingTab extends PluginSettingTab {
           this.plugin.updateCopyOnSelect();
         })
       );
+
+    new Setting(containerEl)
+      .setName("Wiki-link autocomplete")
+      .setDesc(
+        "Type [[ in the terminal to open a dropdown of vault notes. Applies to newly opened tabs.",
+      )
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.wikiLinkAutocomplete).onChange(async (value) => {
+          this.plugin.settings.wikiLinkAutocomplete = value;
+          await this.plugin.saveSettings();
+        }),
+      );
+
+    new Setting(containerEl)
+      .setName("Wiki-link insertion format")
+      .setDesc(
+        "What to write when you accept a suggestion. Use a path mode to hand off to CLI tools (Claude Code, ripgrep, cat) that expect a file path instead of [[Note]].",
+      )
+      .addDropdown((dropdown) => {
+        dropdown.addOption("wikilink", "Wiki-link ([[Note]])");
+        dropdown.addOption("vault-path", "Vault-relative path (Folder/Note.md)");
+        dropdown.addOption("absolute-path", "Absolute path");
+        dropdown.setValue(this.plugin.settings.wikiLinkInsertMode);
+        dropdown.onChange(async (value: string) => {
+          this.plugin.settings.wikiLinkInsertMode = value as WikiLinkInsertMode;
+          await this.plugin.saveSettings();
+        });
+      });
 
     new Setting(containerEl)
       .setName("Scrollback lines")

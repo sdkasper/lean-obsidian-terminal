@@ -473,3 +473,132 @@
   opacity: 0.8;
   flex-shrink: 0;
 }
+
+/* --- Wiki-link autocomplete dropdown --------------------------------- */
+.lean-wikilink-dropdown {
+  position: absolute;
+  z-index: 100;
+  min-width: 260px;
+  max-width: 420px;
+  max-height: 240px;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 10px;
+  font-family: var(--font-interface);
+  font-size: 12.5px;
+  color: var(--text-normal);
+  overflow: hidden;
+  box-shadow: var(--shadow-s);
+}
+
+.lean-wikilink-header {
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.lean-wikilink-empty {
+  padding: 12px;
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+.lean-wikilink-list {
+  overflow-y: auto;
+  max-height: 200px;
+}
+
+.lean-wikilink-item {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 7px 12px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.lean-wikilink-item:hover {
+  background: var(--background-modifier-hover);
+}
+
+.lean-wikilink-item.is-selected {
+  background: rgba(var(--interactive-accent-rgb, 0, 122, 255), 0.1);
+}
+
+.lean-wikilink-name {
+  color: var(--text-normal);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lean-wikilink-path {
+  color: var(--text-faint);
+  font-size: 10.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-left: auto;
+}
+
+.lean-wikilink-item.is-unresolved .lean-wikilink-name {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* --- Wiki-link preview pane ------------------------------------------ */
+.lean-wikilink-preview {
+  position: absolute;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 12px;
+  color: var(--text-normal);
+  max-height: 240px;
+  overflow: hidden;
+  z-index: 1001;
+  font-family: var(--font-interface);
+  box-shadow: var(--shadow-s);
+}
+
+.lean-preview-meta {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 10.5px;
+  color: var(--text-muted);
+}
+
+.lean-preview-backlinks { color: var(--text-accent); }
+
+.lean-preview-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.lean-preview-tag {
+  background: var(--background-primary-alt);
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 10.5px;
+  color: var(--text-accent);
+}
+
+.lean-preview-content {
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.55;
+  color: var(--text-muted);
+  max-height: 150px;
+  overflow: hidden;
+}
+
+.lean-preview-empty {
+  color: var(--text-faint);
+  font-style: italic;
+}
