@@ -72,7 +72,7 @@ An embedded terminal panel for [Obsidian](https://obsidian.md), powered by [xter
 | Copy on select | Off | Automatically copy selected text to the clipboard |
 | Scrollback | 5000 | Number of lines kept in scroll history |
 | Background color | Theme default | Override the theme background with any CSS color (hex, RGB, etc.) |
-| Default location | Bottom | Where new terminal panels open (Bottom or Right) |
+| Default location | Bottom | Where the first terminal view opens |
 | Notify on completion | Off | Sound + notice when a background tab command finishes |
 | Notification sound | Beep | Choose from Beep, Chime, Ping, or Pop |
 | Notification volume | 50 | Volume for notification sounds (0-100) |

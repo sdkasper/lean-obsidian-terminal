@@ -104,10 +104,21 @@ export default class TerminalPlugin extends Plugin {
       return;
     }
 
-    const leaf =
-      this.settings.defaultLocation === "right"
-        ? this.app.workspace.getRightLeaf(false)
-        : this.app.workspace.getLeaf("split", "horizontal");
+    let leaf: WorkspaceLeaf | null;
+    switch (this.settings.defaultLocation) {
+      case "right":
+        leaf = this.app.workspace.getRightLeaf(false);
+        break;
+      case "tab":
+        leaf = this.app.workspace.getLeaf("tab");
+        break;
+      case "split-right":
+        leaf = this.app.workspace.getLeaf("split", "vertical");
+        break;
+      default: // "bottom"
+        leaf = this.app.workspace.getLeaf("split", "horizontal");
+        break;
+    }
 
     if (leaf) {
       await leaf.setViewState({ type: VIEW_TYPE_TERMINAL, active: true });
@@ -149,6 +160,10 @@ export default class TerminalPlugin extends Plugin {
 
   async loadSettings(): Promise<void> {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    if ((this.settings.defaultLocation as string) === "tab-right") {
+      this.settings.defaultLocation = "tab";
+      await this.saveSettings();
+    }
   }
 
   async saveSettings(): Promise<void> {
