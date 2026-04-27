@@ -14,6 +14,14 @@ on:
         required: false
         default: "1.1.0"
 
+# This workflow builds node-pty platform-specific binaries for:
+# - Windows: x64 (windows-latest) and ARM64 (windows-arm64, Snapdragon/etc)
+# - macOS: x64 and ARM64 (Apple Silicon)
+# - Linux: x64
+#
+# The windows-arm64 runner enables support for Windows devices with ARM64
+# processors (e.g. Snapdragon X, Qualcomm processors).
+
 jobs:
   build:
     strategy:
@@ -23,6 +31,9 @@ jobs:
           - os: windows-latest
             platform: win32
             arch: x64
+          - os: windows-arm64
+            platform: win32
+            arch: arm64
           - os: macos-15
             platform: darwin
             arch: arm64
