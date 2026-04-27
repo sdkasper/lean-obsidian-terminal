@@ -119,7 +119,8 @@ export class BinaryManager {
       }
 
       // Platform-specific checks
-      if (platform === "win32" && hasPrebuild) {
+      // winpty.dll is only shipped for win32-x64; ARM64 Windows uses ConPTY natively.
+      if (platform === "win32" && arch !== "arm64" && hasPrebuild) {
         const winpty = this.path.join(prebuildDir, "winpty.dll");
         if (!this.fs.existsSync(winpty)) {
           this.setStatus("not-installed");
