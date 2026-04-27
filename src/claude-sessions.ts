@@ -93,7 +93,7 @@ export async function scanClaudeProjectSessions(
     });
   }
 
-  entries.sort((a, b) => b.modified.localeCompare(a.modified));
+  entries.sort((a, b) => Date.parse(b.modified) - Date.parse(a.modified));
   return entries.slice(0, max);
 }
 
@@ -133,9 +133,9 @@ async function readFirstUserPrompt(filePath: string): Promise<string> {
       }
       if (msg.type !== "user" || msg.isMeta) continue;
       const message = msg.message as { content?: unknown } | undefined;
-      const content = message?.content;
-      if (typeof content === "string") return truncate(content);
-      if (Array.isArray(content)) {
+      const msgContent = message?.content;
+      if (typeof msgContent === "string") return truncate(msgContent);
+      if (Array.isArray(msgContent)) {
         for (const block of content) {
           if (
             block && typeof block === "object" &&
@@ -207,7 +207,7 @@ function generateRegistryMarkdown(entries: ClaudeSessionEntry[]): string {
   const header = [
     "# Claude Sessions",
     "",
-    `*Auto-maintained by Lean Terminal — last refreshed ${new Date().toISOString()}. Click a Resume link to reopen that Claude Code conversation in a new terminal tab.*`,
+    `*Auto-maintained by Lean Terminal - last refreshed ${new Date().toISOString()}. Click a Resume link to reopen that Claude Code conversation in a new terminal tab.*`,
     "",
     "",
   ].join("\n");
@@ -218,9 +218,9 @@ function generateRegistryMarkdown(entries: ClaudeSessionEntry[]): string {
 
   const rows = entries.map((e) => {
     const title = e.summary || e.firstPrompt || `(session ${e.sessionId.slice(0, 8)})`;
-    const branch = e.gitBranch || "\u2014";
-    const modified = e.modified ? e.modified.slice(0, 10) : "\u2014";
-    const msgs = e.messageCount > 0 ? String(e.messageCount) : "\u2014";
+    const branch = e.gitBranch || "-";
+    const modified = e.modified ? e.modified.slice(0, 10) : "-";
+    const msgs = e.messageCount > 0 ? String(e.messageCount) : "-";
     const resumeUri = `obsidian://lean-terminal?resume=${e.sessionId}`;
     return `| ${escapeTableCell(title)} | ${branch} | ${msgs} | ${modified} | [Resume](${resumeUri}) |`;
   });
@@ -263,7 +263,7 @@ export async function resumeClaudeSession(
   });
 }
 
-function getVaultBasePath(plugin: TerminalPlugin): string {
+export function getVaultBasePath(plugin: TerminalPlugin): string {
   const adapter = plugin.app.vault.adapter;
   if (adapter instanceof FileSystemAdapter) return adapter.getBasePath();
   return "";

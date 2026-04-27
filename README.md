@@ -1,6 +1,6 @@
 # Lean Terminal
 
-An embedded terminal panel for [Obsidian](https://obsidian.md), powered by [xterm.js](https://xtermjs.org/) and [node-pty](https://github.com/nicedoc/node-pty). Run shell commands directly inside your vault workspace — no external windows needed.
+An embedded terminal panel for [Obsidian](https://obsidian.md), powered by [xterm.js](https://xtermjs.org/) and [node-pty](https://github.com/nicedoc/node-pty). Run shell commands directly inside your vault workspace - no external windows needed.
 
 **Desktop only.** Requires Obsidian 1.5.0+.
 
@@ -31,7 +31,7 @@ An embedded terminal panel for [Obsidian](https://obsidian.md), powered by [xter
 2. Open **Settings > BRAT > Add Beta Plugin**
 3. Enter: `sdkasper/lean-obsidian-terminal`
 4. Enable the plugin in **Settings > Community Plugins**
-5. Go to **Settings > Terminal > Download binaries** and click **Download** — this fetches the native terminal binary for your platform
+5. Go to **Settings > Terminal > Download binaries** and click **Download** - this fetches the native terminal binary for your platform
 6. Open the terminal via the ribbon icon or command palette
 
 ### Manual Installation
@@ -51,8 +51,8 @@ An embedded terminal panel for [Obsidian](https://obsidian.md), powered by [xter
 | Rename tab | Right-click the tab label |
 | Close tab | Click the **x** on the tab |
 | Split pane | Command palette: **Open terminal in new pane** |
-| Restore closed tab | Command palette: **Restore recent terminal session** — pick from recently closed tabs (and Claude sessions, if integration enabled) |
-| Refresh Claude session registry | Command palette: **Refresh Claude session registry** — rewrites the registry note (requires Claude integration enabled) |
+| Restore closed tab | Command palette: **Restore recent terminal session** - pick from recently closed tabs (and Claude sessions, if integration enabled) |
+| Refresh Claude session registry | Command palette: **Refresh Claude session registry** - rewrites the registry note (requires Claude integration enabled) |
 
 ## Settings
 
@@ -78,13 +78,13 @@ An embedded terminal panel for [Obsidian](https://obsidian.md), powered by [xter
 
 ## How It Works
 
-The plugin uses xterm.js for terminal rendering and node-pty for native pseudo-terminal support. node-pty spawns a real shell process (PowerShell, bash, etc.) and connects its stdin/stdout to xterm.js via Obsidian's Electron runtime. This gives you a fully interactive terminal — not just command execution.
+The plugin uses xterm.js for terminal rendering and node-pty for native pseudo-terminal support. node-pty spawns a real shell process (PowerShell, bash, etc.) and connects its stdin/stdout to xterm.js via Obsidian's Electron runtime. This gives you a fully interactive terminal - not just command execution.
 
 On Windows, the plugin uses the winpty backend because Obsidian's Electron renderer does not support Worker threads required by ConPTY.
 
 ## Session Persistence
 
-Each terminal tab's name, color, working directory, and scrollback buffer are saved to the workspace layout on close and on Obsidian quit. On next launch, tabs are restored with their history visible and a fresh shell spawned in the saved directory. This is visual/history restore — the underlying shell process does not survive quit.
+Each terminal tab's name, color, working directory, and scrollback buffer are saved to the workspace layout on close and on Obsidian quit. On next launch, tabs are restored with their history visible and a fresh shell spawned in the saved directory. This is visual/history restore - the underlying shell process does not survive quit.
 
 Closing a tab (**x** button) pushes its state to a rescue ring buffer stored in plugin data. Use **Restore recent terminal session** from the command palette to re-open a closed tab at any point.
 
@@ -97,7 +97,7 @@ Disabled by default. When enabled in settings, the plugin:
 - Registers the `obsidian://lean-terminal?resume=<session-id>` URI so links in the registry (or any note) open a new terminal tab and run `claude --resume <session-id>` once the shell is ready
 - Includes Claude sessions alongside recently closed tabs in the **Restore recent terminal session** picker, sorted by most recent
 
-Sessions started by typing `claude` manually inside a tab are not auto-tracked, but appear in the picker on its next open (the scan runs fresh each time) — click to resume.
+Sessions started by typing `claude` manually inside a tab are not auto-tracked, but appear in the picker on its next open (the scan runs fresh each time) - click to resume.
 
 ## Feedback
 

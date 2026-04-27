@@ -31,7 +31,7 @@ export interface TerminalSession {
   color: string;
   /** Working directory the shell was spawned in. */
   cwd: string;
-  /** Reserved for Stage C: command to re-run on restore (e.g. "claude --resume <uuid>"). */
+  /** Command to re-run on restore (e.g. "claude --resume <uuid>"). */
   resumeCommand?: string;
 }
 
@@ -591,6 +591,10 @@ export class TerminalTabManager {
     for (const session of this.sessions) {
       session.terminal.options.theme = { ...session.terminal.options.theme, background: theme.background };
     }
+  }
+
+  updateCopyOnSelect(): void {
+    // no-op: onSelectionChange listeners read this.settings.copyOnSelect at call time
   }
 
   private renderTabBar(): void {

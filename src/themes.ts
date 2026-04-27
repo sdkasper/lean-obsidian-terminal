@@ -287,3 +287,8 @@ export const BUILTIN_THEMES: Record<string, ITheme> = {
 export function isObsidianDark(): boolean {
   return document.body.classList.contains("theme-dark");
 }
+
+/** Get a theme by name, falling back to obsidian-dark if not found. */
+export function getTheme(name: string): ITheme {
+  return BUILTIN_THEMES[name] || BUILTIN_THEMES["obsidian-dark"];
+}

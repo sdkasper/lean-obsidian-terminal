@@ -125,6 +125,10 @@ export class TerminalView extends ItemView {
     this.tabManager?.updateBackgroundColor();
   }
 
+  updateCopyOnSelect(): void {
+    this.tabManager?.updateCopyOnSelect();
+  }
+
   getState(): Record<string, unknown> {
     if (!this.tabManager) {
       // Before onOpen runs (or after onClose): hand back any pending state we still have

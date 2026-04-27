@@ -415,14 +415,6 @@ export class TerminalSettingTab extends PluginSettingTab {
           })
       );
 
-<<<<<<< HEAD
-    // --- About ---
-    new Setting(containerEl).setName("About").setHeading();
-
-    new Setting(containerEl)
-      .setName("Plugin version")
-      .setDesc(`Lean Obsidian Terminal v${this.plugin.manifest.version}`);
-=======
     // --- Session Persistence ---
     new Setting(containerEl).setName("Session persistence").setHeading();
 
@@ -508,6 +500,12 @@ export class TerminalSettingTab extends PluginSettingTab {
             })
         );
     }
->>>>>>> a30db32 (feat: session management — persistence, rescue, Claude Code integration)
+
+    // --- About ---
+    new Setting(containerEl).setName("About").setHeading();
+
+    new Setting(containerEl)
+      .setName("Plugin version")
+      .setDesc(`Lean Obsidian Terminal v${this.plugin.manifest.version}`);
   }
 }

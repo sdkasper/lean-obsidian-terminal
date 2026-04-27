@@ -3,13 +3,16 @@ import { VIEW_TYPE_TERMINAL } from "./constants";
 import { TerminalView } from "./terminal-view";
 import { TerminalSettingTab, DEFAULT_SETTINGS, type TerminalPluginSettings } from "./settings";
 import { BinaryManager } from "./binary-manager";
+import { ThemeRegistry } from "./theme-registry";
 import { openRecentSessionPicker } from "./recent-sessions";
 import { refreshClaudeRegistry, resumeClaudeSession } from "./claude-sessions";
 
 export default class TerminalPlugin extends Plugin {
   settings: TerminalPluginSettings = DEFAULT_SETTINGS;
   binaryManager!: BinaryManager;
+  themeRegistry!: ThemeRegistry;
   private ribbonEl: HTMLElement | null = null;
+  private themeObserver: MutationObserver | null = null;
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -23,6 +26,10 @@ export default class TerminalPlugin extends Plugin {
     );
     this.binaryManager = new BinaryManager(pluginDir);
     this.binaryManager.checkInstalled();
+
+    // Theme registry — loads optional themes.json from the plugin folder
+    this.themeRegistry = new ThemeRegistry(pluginDir);
+    await this.themeRegistry.load();
 
     // Register the terminal view
     this.registerView(VIEW_TYPE_TERMINAL, (leaf: WorkspaceLeaf) => {
@@ -100,6 +107,9 @@ export default class TerminalPlugin extends Plugin {
   }
 
   onunload(): void {
+    this.themeObserver?.disconnect();
+    this.themeObserver = null;
+
     // Detach after a tick to avoid disrupting the settings modal
     setTimeout(() => {
       this.app.workspace.detachLeavesOfType(VIEW_TYPE_TERMINAL);
@@ -113,10 +123,21 @@ export default class TerminalPlugin extends Plugin {
       return;
     }
 
-    const leaf =
-      this.settings.defaultLocation === "right"
-        ? this.app.workspace.getRightLeaf(false)
-        : this.app.workspace.getLeaf("split", "horizontal");
+    let leaf: WorkspaceLeaf | null;
+    switch (this.settings.defaultLocation) {
+      case "right":
+        leaf = this.app.workspace.getRightLeaf(false);
+        break;
+      case "tab":
+        leaf = this.app.workspace.getLeaf("tab");
+        break;
+      case "split-right":
+        leaf = this.app.workspace.getLeaf("split", "vertical");
+        break;
+      default: // "bottom"
+        leaf = this.app.workspace.getLeaf("split", "horizontal");
+        break;
+    }
 
     if (leaf) {
       await leaf.setViewState({ type: VIEW_TYPE_TERMINAL, active: true });
@@ -179,6 +200,14 @@ export default class TerminalPlugin extends Plugin {
       // tabHeaderInnerIconEl is undocumented but stable across Obsidian versions
       const iconEl = (leaf as WorkspaceLeaf & { tabHeaderInnerIconEl?: HTMLElement }).tabHeaderInnerIconEl;
       if (iconEl) setIcon(iconEl, safeName);
+    }
+  }
+
+  updateCopyOnSelect(): void {
+    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TERMINAL);
+    for (const leaf of leaves) {
+      const view = leaf.view as TerminalView;
+      view.updateCopyOnSelect();
     }
   }
 }

@@ -5,6 +5,7 @@ import type { CreateTabOpts } from "./terminal-tab-manager";
 import { openTabOrView } from "./terminal-opener";
 import {
   scanClaudeProjectSessions,
+  getVaultBasePath,
   type ClaudeSessionEntry,
 } from "./claude-sessions";
 
@@ -82,7 +83,7 @@ class UnifiedSessionPicker extends FuzzySuggestModal<PickerItem> {
     if (item.kind === "recent") {
       const s = item.session;
       const age = relativeTime(Date.now() - s.closedAt);
-      return `[Recent] ${s.name} — ${s.cwd} (${age})`;
+      return `[Recent] ${s.name} - ${s.cwd} (${age})`;
     }
     const s = item.session;
     const title = s.summary || s.firstPrompt || `(${s.sessionId.slice(0, 8)})`;
@@ -129,12 +130,6 @@ async function restoreClaude(plugin: TerminalPlugin, entry: ClaudeSessionEntry):
     resumeCommand: `claude --resume ${entry.sessionId}`,
   };
   await openTabOrView(plugin, opts);
-}
-
-function getVaultBasePath(plugin: TerminalPlugin): string {
-  const adapter = plugin.app.vault.adapter;
-  if (adapter instanceof FileSystemAdapter) return adapter.getBasePath();
-  return "";
 }
 
 function relativeTime(ms: number): string {

@@ -19,7 +19,7 @@ export interface SavedTab {
   bufferSerial?: string;
   /**
    * Command to run after the shell spawns on restore
-   * (e.g. "claude --resume <uuid>"). Reserved for Stage C.
+   * (e.g. "claude --resume <uuid>").
    */
   resumeCommand?: string;
 }
