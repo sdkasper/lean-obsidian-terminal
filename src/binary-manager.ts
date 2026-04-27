@@ -170,16 +170,10 @@ export class BinaryManager {
       const tag = version;
       const baseUrl = `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/${tag}`;
 
-      // Download checksums
+      // Download checksums — required; abort if unavailable
       this.setStatus("downloading", "Downloading checksums...");
-      let checksums: Record<string, string> = {};
-      try {
-        const checksumResp = await requestUrl({ url: `${baseUrl}/checksums.json` });
-        checksums = checksumResp.json;
-      } catch {
-        // Checksums optional — warn but continue
-        console.warn("Terminal: checksums.json not found, skipping verification");
-      }
+      const checksumResp = await requestUrl({ url: `${baseUrl}/checksums.json` });
+      const checksums: Record<string, string> = checksumResp.json;
 
       // Download binary zip
       this.setStatus("downloading", `Downloading ${assetName}...`);
@@ -189,17 +183,16 @@ export class BinaryManager {
       });
       const zipBuffer = Buffer.from(zipResp.arrayBuffer);
 
-      // Verify checksum if available
-      if (checksums[assetName]) {
-        const hash = this.crypto
-          .createHash("sha256")
-          .update(zipBuffer)
-          .digest("hex");
-        if (hash !== checksums[assetName]) {
-          throw new Error(
-            `Checksum mismatch for ${assetName}: expected ${checksums[assetName]}, got ${hash}`
-          );
-        }
+      // Verify checksum — always required
+      const expectedHash = checksums[assetName];
+      if (!expectedHash) {
+        throw new Error(`No checksum found for ${assetName} in checksums.json`);
+      }
+      const actualHash = this.crypto.createHash("sha256").update(zipBuffer).digest("hex");
+      if (actualHash !== expectedHash) {
+        throw new Error(
+          `Checksum mismatch for ${assetName}: expected ${expectedHash}, got ${actualHash}`
+        );
       }
 
       // Write zip to temp file
