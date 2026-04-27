@@ -1,13 +1,14 @@
-import { Notice } from "obsidian";
+import { Notice, type App, FileSystemAdapter } from "obsidian";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { SerializeAddon } from "@xterm/addon-serialize";
 import type { IDisposable } from "@xterm/xterm";
 import { PtyManager } from "./pty-manager";
-import { getTheme } from "./themes";
+import { getTheme, isObsidianDark } from "./themes";
 import { mixHex } from "./color-utils";
 import { findTabColor, DEFAULT_TINT_STRENGTH } from "./tab-colors";
+import { ThemeRegistry } from "./theme-registry";
 import type { TerminalPluginSettings } from "./settings";
 import type { NotificationSound } from "./settings";
 import type { BinaryManager } from "./binary-manager";
@@ -56,15 +57,6 @@ function matchesShortcut(e: KeyboardEvent, shortcut: string): boolean {
   );
 }
 
-const SEARCH_DECORATIONS = {
-  matchBackground: "#ffff00",
-  matchBorder: "#ffff00",
-  matchOverviewRuler: "#ffff00",
-  activeMatchBackground: "#ff6600",
-  activeMatchBorder: "#ff0000",
-  activeMatchColorOverviewRuler: "#ff0000",
-} as const;
-
 export interface TerminalSession {
   id: string;
   name: string;
@@ -78,6 +70,12 @@ export interface TerminalSession {
   cwd: string;
   /** Command to re-run on restore (e.g. "claude --resume <uuid>"). */
   resumeCommand?: string;
+  /** Disposables for parser/event handlers — cleaned up on close. */
+  parserDisposables: IDisposable[];
+  /** Mode 2031 state for terminal color queries. */
+  mode2031: boolean;
+  /** Whether this tab is pinned and cannot be closed. */
+  pinned: boolean;
 }
 
 /** Options for restoring a tab from persisted state (via setState). */
@@ -326,7 +324,6 @@ function extractDropPath(e: DragEvent, app: App): string | null {
   return null;
 }
 
->>>>>>> 9d8db06 (feat: per-tab color tint with editable palette)
 export class TerminalTabManager {
   private sessions: TerminalSession[] = [];
   private activeId: string | null = null;
@@ -336,6 +333,7 @@ export class TerminalTabManager {
   private cwd: string;
   private pluginDir: string;
   private binaryManager: BinaryManager;
+  private themeRegistry: ThemeRegistry;
   private onActiveChange?: () => void;
   private onTabsEmpty?: () => void;
   private requestSaveLayout?: () => void;
@@ -350,6 +348,7 @@ export class TerminalTabManager {
     cwd: string,
     pluginDir: string,
     binaryManager: BinaryManager,
+    themeRegistry: ThemeRegistry,
     onActiveChange?: () => void,
     onTabsEmpty?: () => void,
     requestSaveLayout?: () => void,
@@ -361,6 +360,7 @@ export class TerminalTabManager {
     this.cwd = cwd;
     this.pluginDir = pluginDir;
     this.binaryManager = binaryManager;
+    this.themeRegistry = themeRegistry;
     this.onActiveChange = onActiveChange;
     this.onTabsEmpty = onTabsEmpty;
     this.requestSaveLayout = requestSaveLayout;
@@ -515,6 +515,9 @@ export class TerminalTabManager {
       color: opts?.color ?? "",
       cwd: sessionCwd,
       resumeCommand: opts?.resumeCommand,
+      parserDisposables: [],
+      mode2031: false,
+      pinned: false,
     };
     this.sessions.push(session);
     this.switchTab(id);
