@@ -117,6 +117,17 @@ npm run build        # Production build
 node install.mjs     # Install to default vault (D:\LOS Test)
 ```
 
+## Contributors
+
+This plugin is built and maintained by a dedicated community. Special thanks to:
+
+- **[@sdkasper](https://github.com/sdkasper)** (Sascha Kasper) — Core architecture, terminal lifecycle management, Windows/macOS/Linux platform support, binary download system, plugin distribution, and ongoing maintenance
+- **[@FarhadGSRX](https://github.com/FarhadGSRX)** — Session persistence, session rescue buffer, Claude Code integration with registry generation and resume links, color scheme catalog with themes.json support
+- **[@ckelsoe](https://github.com/ckelsoe)** — Per-tab color tint customization with editable palette, wiki-link autocomplete with path-insertion modes
+- **[@c00llin](https://github.com/c00llin)** — Terminal location options (Tab Right, Split Tab Right)
+- **[@kkugot](https://github.com/kkugot)** — Emoji rendering fixes, system theme detection with terminal color reporting protocol
+- **[@CHodder5](https://github.com/CHodder5)** — Zsh startup file forwarding (.zshenv and .zprofile) via ZDOTDIR override
+
 ## License
 
 [MIT](LICENSE)
