@@ -1,4 +1,4 @@
-import { FuzzySuggestModal, Notice, FileSystemAdapter } from "obsidian";
+import { FuzzySuggestModal, Notice } from "obsidian";
 import type TerminalPlugin from "./main";
 import type { RecentSession, SavedTab } from "./session-state";
 import type { CreateTabOpts } from "./terminal-tab-manager";

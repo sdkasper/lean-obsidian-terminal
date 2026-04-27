@@ -176,7 +176,7 @@ function truncate(s: string, max = 100): string {
  */
 export async function refreshClaudeRegistry(plugin: TerminalPlugin): Promise<void> {
   if (!plugin.settings.enableClaudeIntegration) {
-    new Notice("Enable Claude Code integration in settings first.");
+    new Notice("Enable Claude code integration in settings first.");
     return;
   }
 

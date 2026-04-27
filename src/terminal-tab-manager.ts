@@ -1,4 +1,4 @@
-import { Notice, type App, FileSystemAdapter } from "obsidian";
+import { Notice } from "obsidian";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
@@ -274,55 +274,6 @@ function registerColorReporting(session: TerminalSession): void {
   }));
 }
 
-function quotePath(rawPath: string, shellPath: string): string {
-  if (!rawPath.includes(' ')) return rawPath;
-  const lower = shellPath.toLowerCase();
-  if (lower.includes('bash') || lower.includes('zsh') || lower.includes('sh')) {
-    return `'${rawPath}'`;
-  }
-  return `"${rawPath}"`;
-}
-
-interface ElectronFile extends File { path?: string; }
-interface ObsidianAppInternal extends App {
-  dragManager?: { draggable?: { file?: { path: string } } };
-}
-
-function extractDropPath(e: DragEvent, app: App): string | null {
-  // OS file drag via text/uri-list (file:// URLs in Electron)
-  const uriList = e.dataTransfer?.getData('text/uri-list');
-  if (uriList) {
-    const uri = uriList.split('\n')[0].trim();
-    if (uri.startsWith('file://')) {
-      const path = window.require('url').fileURLToPath(uri);
-      return path;
-    }
-  }
-
-  // OS file drag via dataTransfer.files — use Electron webUtils (Electron 32+) with .path fallback
-  if (e.dataTransfer?.files.length) {
-    const file = e.dataTransfer.files[0];
-    try {
-      const { webUtils } = window.require('electron') as { webUtils: { getPathForFile: (file: File) => string } };
-      const p = webUtils.getPathForFile(file);
-      if (p) return p;
-    } catch {
-      const p = (file as ElectronFile).path;
-      if (p) return p;
-    }
-  }
-
-  // Obsidian internal file drag
-  const draggable = (app as ObsidianAppInternal).dragManager?.draggable;
-  if (draggable?.file) {
-    const basePath = (app.vault.adapter as FileSystemAdapter).getBasePath();
-    const vaultPath = draggable.file.path.split('/').join(window.require('path').sep);
-    const fullPath = window.require('path').join(basePath, vaultPath);
-    return fullPath;
-  }
-
-  return null;
-}
 
 export class TerminalTabManager {
   private sessions: TerminalSession[] = [];

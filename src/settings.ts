@@ -617,7 +617,7 @@ export class TerminalSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("Recent sessions to keep")
       .setDesc(
-        "When a tab is closed, its state is kept for rescue via \"Restore recent terminal session\". Set to 0 to disable."
+        "When a tab is closed, its state is kept for rescue via \"restore recent terminal session\". Set to 0 to disable."
       )
       .addText((text) =>
         text
@@ -636,12 +636,12 @@ export class TerminalSettingTab extends PluginSettingTab {
       );
 
     // --- Claude Code Integration ---
-    new Setting(containerEl).setName("Claude Code integration").setHeading();
+    new Setting(containerEl).setName("Claude code integration").setHeading();
 
     new Setting(containerEl)
-      .setName("Enable Claude Code integration")
+      .setName("Enable Claude code integration")
       .setDesc(
-        "Scan ~/.claude/ for conversation sessions, register the obsidian://lean-terminal URI handler for resume links, and show Claude sessions in the restore picker."
+        "Detect Claude sessions, register a uri handler for in-app resume links, and show Claude sessions in the restore picker."
       )
       .addToggle((toggle) =>
         toggle.setValue(this.plugin.settings.enableClaudeIntegration).onChange(async (value) => {

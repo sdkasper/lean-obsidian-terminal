@@ -101,7 +101,7 @@ export default class TerminalPlugin extends Plugin {
     // because Obsidian's requestSaveLayout is debounced.
     this.registerEvent(
       this.app.workspace.on("quit", () => {
-        this.app.workspace.requestSaveLayout.run();
+        void this.app.workspace.requestSaveLayout.run();
       })
     );
   }
