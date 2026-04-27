@@ -112,7 +112,7 @@ export class TerminalSettingTab extends PluginSettingTab {
     row.setDesc(color.builtin ? `${color.value} - built-in` : color.value);
 
     if (!color.builtin) {
-      row.addText((text) =>
+      row.addText((text) => {
         text
           .setPlaceholder("Name")
           .setValue(color.name)
@@ -126,8 +126,9 @@ export class TerminalSettingTab extends PluginSettingTab {
             }
             color.name = trimmed;
             await this.plugin.saveSettings();
-          }),
-      );
+          });
+        text.inputEl.addEventListener("blur", () => this.display());
+      });
 
       row.addColorPicker((picker) =>
         picker.setValue(color.value).onChange(async (value) => {
@@ -486,10 +487,13 @@ export class TerminalSettingTab extends PluginSettingTab {
           this.plugin.settings.tabColorTintsBackground = value;
           await this.plugin.saveSettings();
           this.plugin.updateTerminalBackgrounds();
+          this.display();
         }),
       );
 
-    this.renderTabColorsSection(containerEl);
+    if (this.plugin.settings.tabColorTintsBackground) {
+      this.renderTabColorsSection(containerEl);
+    }
 
     new Setting(containerEl)
       .setName("Cursor blink")

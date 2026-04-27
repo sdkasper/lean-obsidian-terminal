@@ -5,12 +5,11 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import { SerializeAddon } from "@xterm/addon-serialize";
 import type { IDisposable } from "@xterm/xterm";
 import { PtyManager } from "./pty-manager";
-import { getTheme, isObsidianDark } from "./themes";
+import { isObsidianDark } from "./themes";
 import { mixHex } from "./color-utils";
-import { findTabColor, DEFAULT_TINT_STRENGTH } from "./tab-colors";
+import { findTabColor, DEFAULT_TINT_STRENGTH, MAX_TINT_STRENGTH } from "./tab-colors";
 import { ThemeRegistry } from "./theme-registry";
-import type { TerminalPluginSettings } from "./settings";
-import type { NotificationSound } from "./settings";
+import type { TerminalPluginSettings, NotificationSound } from "./settings";
 import type { BinaryManager } from "./binary-manager";
 import type { SavedTab } from "./session-state";
 
@@ -207,7 +206,8 @@ function resolveTerminalTheme(settings: TerminalPluginSettings, registry: ThemeR
 function tintRatioForColor(color: string, settings: TerminalPluginSettings): number {
   if (!color || !settings.tabColorTintsBackground) return 0;
   const def = findTabColor(settings.tabColors, color);
-  return (def?.tintStrength ?? DEFAULT_TINT_STRENGTH) / 100;
+  const strength = Math.min(MAX_TINT_STRENGTH, Math.max(0, def?.tintStrength ?? DEFAULT_TINT_STRENGTH));
+  return strength / 100;
 }
 
 /** Theme with the per-session tab color mixed into the background.
@@ -433,16 +433,16 @@ export class TerminalTabManager {
     const containerEl = this.terminalHostEl.createDiv({ cls: "terminal-session" });
 
     // Create xterm.js instance
-    const theme = getTheme(this.settings.theme);
-    if (this.settings.backgroundColor) {
-      theme.background = this.settings.backgroundColor;
-    }
     const terminal = new Terminal({
       fontSize: this.settings.fontSize,
       fontFamily: this.settings.fontFamily,
       cursorBlink: this.settings.cursorBlink,
       scrollback: this.settings.scrollback,
-      theme,
+      theme: resolveSessionTheme(
+        { color: opts?.color ?? "" },
+        this.settings,
+        this.themeRegistry,
+      ),
     });
 
     const fitAddon = new FitAddon();
@@ -682,6 +682,7 @@ export class TerminalTabManager {
    * (e.g. setState after onOpen's default-tab creation) to avoid polluting recents.
    */
   destroyAll(saveToRecents = true): void {
+    document.querySelector(".terminal-tab-context-menu")?.remove();
     for (const session of this.sessions) {
       if (saveToRecents) {
         this.onSessionClose?.(this.captureSession(session));
