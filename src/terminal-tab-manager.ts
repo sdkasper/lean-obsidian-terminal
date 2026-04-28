@@ -560,10 +560,10 @@ export class TerminalTabManager {
         terminal.write(data);
       });
 
-      // Wire data: xterm -> PTY. Autocomplete observes but never consumes.
+      // Wire data: xterm -> PTY. Autocomplete may consume data (returns true) to
+      // prevent keypress-echoed chars from reaching the PTY while active.
       terminal.onData((data: string) => {
-        session.autocomplete?.handleData(data);
-        pty.write(data);
+        if (!session.autocomplete?.handleData(data)) pty.write(data);
       });
 
       pty.onExit(() => {

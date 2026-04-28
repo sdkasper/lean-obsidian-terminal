@@ -111,13 +111,13 @@ export class WikiLinkAutocomplete {
    * Never consumes data, the brackets still reach the shell so the user sees
    * their input echoed. The dropdown appears as an overlay.
    */
-  handleData(data: string): void {
-    if (this.active) return;
+  handleData(data: string): boolean {
+    if (this.active) return true;
 
     if (data.length > 1) {
       if (data.includes("[[")) this.activate();
       this.lastCharWasBracket = data.endsWith("[");
-      return;
+      return false;
     }
 
     if (data === "[") {
@@ -130,6 +130,7 @@ export class WikiLinkAutocomplete {
     } else {
       this.lastCharWasBracket = false;
     }
+    return false;
   }
 
   /**
