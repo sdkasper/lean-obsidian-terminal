@@ -14,49 +14,6 @@ import type { BinaryManager } from "./binary-manager";
 import type { SavedTab } from "./session-state";
 import { WikiLinkAutocomplete, type AutocompleteEntry } from "./wikilink-autocomplete";
 
-const SEARCH_DECORATIONS = {
-  matchBackground: "#ffff00",
-  matchBorder: "#ffff00",
-  matchOverviewRuler: "#ffff00",
-  activeMatchBackground: "#ff6600",
-  activeMatchBorder: "#ff0000",
-  activeMatchColorOverviewRuler: "#ff0000",
-} as const;
-
-interface ParsedShortcut {
-  ctrl: boolean;
-  shift: boolean;
-  alt: boolean;
-  meta: boolean;
-  key: string;
-}
-
-function parseShortcut(s: string): ParsedShortcut | null {
-  if (!s.trim()) return null;
-  const parts = s.split("+");
-  const key = parts[parts.length - 1];
-  const lower = parts.map((p) => p.toLowerCase());
-  return {
-    ctrl: lower.includes("ctrl"),
-    shift: lower.includes("shift"),
-    alt: lower.includes("alt"),
-    meta: lower.includes("meta") || lower.includes("cmd"),
-    key,
-  };
-}
-
-function matchesShortcut(e: KeyboardEvent, shortcut: string): boolean {
-  const p = parseShortcut(shortcut);
-  if (!p) return false;
-  return (
-    e.ctrlKey === p.ctrl &&
-    e.shiftKey === p.shift &&
-    e.altKey === p.alt &&
-    e.metaKey === p.meta &&
-    e.key.toLowerCase() === p.key.toLowerCase()
-  );
-}
-
 export interface TerminalSession {
   id: string;
   name: string;
@@ -169,32 +126,7 @@ function playNotificationSound(sound: NotificationSound, volume: number): void {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Terminal color reporting helpers (OSC 10/11, Mode 2031)
-// ---------------------------------------------------------------------------
-
 const ESC = "\x1b";
-const BEL = "\x07";
-const HEX6_RE = /^#[0-9a-fA-F]{6}$/;
-
-/** Convert "#RRGGBB" hex to X11 "rgb:RRRR/GGGG/BBBB" (16-bit per component). */
-function hexToX11(hex: string): string {
-  if (!HEX6_RE.test(hex)) return "rgb:0000/0000/0000";
-  const r = hex.slice(1, 3);
-  const g = hex.slice(3, 5);
-  const b = hex.slice(5, 7);
-  return `rgb:${r}${r}/${g}${g}/${b}${b}`;
-}
-
-/** Get the effective foreground color for a session. */
-function sessionForeground(session: TerminalSession): string {
-  return (session.terminal.options.theme?.foreground) || "#d4d4d4";
-}
-
-/** Get the effective background color for a session. */
-function sessionBackground(session: TerminalSession): string {
-  return (session.terminal.options.theme?.background) || "#1e1e1e";
-}
 
 function resolveTerminalTheme(settings: TerminalPluginSettings, registry: ThemeRegistry) {
   const theme = registry.get(settings.theme);
@@ -227,55 +159,6 @@ function resolveSessionTheme(
   }
   return theme;
 }
-
-/**
- * Register OSC 10/11 query handlers and Mode 2031 / CSI ?996n handlers
- * on a terminal session. Responses are written back to the PTY so the child
- * app reads them from stdin — matching real terminal behavior.
- */
-function registerColorReporting(session: TerminalSession): void {
-  const { terminal, pty } = session;
-  const d: IDisposable[] = session.parserDisposables;
-
-  // --- OSC 10 ; ? — query default foreground color ---
-  d.push(terminal.parser.registerOscHandler(10, (data: string) => {
-    if (data !== "?") return false; // not a query, let default handler run
-    const color = hexToX11(sessionForeground(session));
-    pty.write(`${ESC}]10;${color}${BEL}`);
-    return true;
-  }));
-
-  // --- OSC 11 ; ? — query default background color ---
-  d.push(terminal.parser.registerOscHandler(11, (data: string) => {
-    if (data !== "?") return false;
-    const color = hexToX11(sessionBackground(session));
-    pty.write(`${ESC}]11;${color}${BEL}`);
-    return true;
-  }));
-
-  // --- CSI ? 996 n — one-shot dark/light mode query ---
-  d.push(terminal.parser.registerCsiHandler({ prefix: "?", final: "n" }, (params) => {
-    if (params[0] !== 996) return false;
-    const mode = isObsidianDark() ? 1 : 2; // 1 = dark, 2 = light
-    pty.write(`${ESC}[?997;${mode}n`);
-    return true;
-  }));
-
-  // --- CSI ? 2031 h — enable Mode 2031 (color-scheme-change notifications) ---
-  d.push(terminal.parser.registerCsiHandler({ prefix: "?", final: "h" }, (params) => {
-    if (params[0] !== 2031) return false;
-    session.mode2031 = true;
-    return true;
-  }));
-
-  // --- CSI ? 2031 l — disable Mode 2031 ---
-  d.push(terminal.parser.registerCsiHandler({ prefix: "?", final: "l" }, (params) => {
-    if (params[0] !== 2031) return false;
-    session.mode2031 = false;
-    return true;
-  }));
-}
-
 
 function quotePath(rawPath: string, shellPath: string): string {
   if (!rawPath.includes(" ")) return rawPath;
