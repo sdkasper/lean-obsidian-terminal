@@ -1,4 +1,4 @@
-import { Notice } from "obsidian";
+import { Notice, App, FileSystemAdapter } from "obsidian";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
@@ -277,6 +277,15 @@ function registerColorReporting(session: TerminalSession): void {
 }
 
 
+function quotePath(rawPath: string, shellPath: string): string {
+  if (!rawPath.includes(" ")) return rawPath;
+  const lower = shellPath.toLowerCase();
+  if (lower.includes("bash") || lower.includes("zsh") || lower.includes("sh")) {
+    return `'${rawPath}'`;
+  }
+  return `"${rawPath}"`;
+}
+
 export class TerminalTabManager {
   private sessions: TerminalSession[] = [];
   private activeId: string | null = null;
@@ -293,8 +302,10 @@ export class TerminalTabManager {
   private onSessionClose?: (tab: SavedTab) => void;
   /** Set true by any terminal write/resize; consumed by the view's periodic save timer. */
   private outputDirty = false;
+  private readonly app: App;
 
   constructor(
+    app: App,
     tabBarEl: HTMLElement,
     terminalHostEl: HTMLElement,
     settings: TerminalPluginSettings,
@@ -307,6 +318,7 @@ export class TerminalTabManager {
     requestSaveLayout?: () => void,
     onSessionClose?: (tab: SavedTab) => void
   ) {
+    this.app = app;
     this.tabBarEl = tabBarEl;
     this.terminalHostEl = terminalHostEl;
     this.settings = settings;
