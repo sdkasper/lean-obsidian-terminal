@@ -320,6 +320,19 @@ export class TerminalSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
+      .setName("Startup command")
+      .setDesc("Run this command automatically when a new terminal tab opens (e.g. claude, npm run dev)")
+      .addText((text) =>
+        text
+          .setPlaceholder("none")
+          .setValue(this.plugin.settings.startupCommand)
+          .onChange(async (value) => {
+            this.plugin.settings.startupCommand = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
       .setName("Default location")
       .setDesc("Where to open the first terminal view")
       .addDropdown((dropdown) => {
