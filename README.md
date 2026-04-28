@@ -7,7 +7,11 @@ An embedded terminal panel for [Obsidian](https://obsidian.md), powered by [xter
 ## Features
 
 - Full PTY terminal (not a simple command runner) with interactive shell support
-- Multiple terminal tabs with rename and color-coding support
+- Multiple terminal tabs with rename, color-coding, and pinning support
+- Drag files from the Obsidian file explorer or Windows Explorer into the terminal to insert the absolute path (spaces auto-quoted for your shell)
+- Reorder tabs by dragging them left or right in the tab bar
+- In-terminal search bar (default shortcut: Ctrl+Alt+F) with match counter, case-sensitive toggle, and highlight decorations
+- Copy on select: automatically copy selected text to the clipboard as you highlight it
 - Auto-detects your shell: PowerShell 7 / Windows PowerShell / cmd.exe on Windows, `$SHELL` on macOS/Linux
 - Startup command: configure a command that runs automatically in every new terminal tab once the shell is ready (e.g. `claude`, `npm run dev`)
 - Four built-in color themes: Obsidian Dark, Obsidian Light, Monokai, Solarized Dark
@@ -52,6 +56,10 @@ An embedded terminal panel for [Obsidian](https://obsidian.md), powered by [xter
 | Toggle terminal | Command palette: **Toggle terminal**, or click the ribbon icon again |
 | New tab | Command palette: **New terminal tab**, or click the **+** button in the tab bar |
 | Rename tab | Right-click the tab label |
+| Pin tab | Right-click the tab - **Pin** - hides the close button and blocks accidental close |
+| Reorder tabs | Drag a tab left or right when two or more tabs are open |
+| Drop file path | Drag a file from the file explorer or Windows Explorer into the terminal |
+| Search terminal output | Press **Ctrl+Alt+F** (configurable) to open the search bar |
 | Close tab | Click the **x** on the tab |
 | Split pane | Command palette: **Open terminal in new pane** |
 | Restore closed tab | Command palette: **Restore recent terminal session** - pick from recently closed tabs (and Claude sessions, if integration enabled) |
@@ -79,6 +87,8 @@ An embedded terminal panel for [Obsidian](https://obsidian.md), powered by [xter
 | Enable Claude Code integration | Off | Scan `~/.claude/` for sessions, register the `obsidian://lean-terminal` URI handler, include Claude sessions in the restore picker |
 | Registry note path | claude-sessions.md | Vault-relative path to the auto-maintained Claude sessions registry |
 | Registry sessions to keep | 25 | Max Claude sessions listed in the registry note and picker |
+| Copy on select | Off | Automatically copy selected text to the clipboard |
+| Search shortcut | Ctrl+Alt+F | Keyboard shortcut to open the in-terminal search bar |
 | Wiki-link autocomplete | Off | Type `[[` in the terminal to open a searchable vault note picker |
 | Wiki-link insertion format | Wiki-link | How an accepted note is inserted: `[[Note]]`, vault-relative path, or absolute path |
 | Tab bar position | Top | Position of the tab bar: Top (horizontal, default), Left, or Right (vertical stacking) |
