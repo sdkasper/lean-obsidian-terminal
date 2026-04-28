@@ -413,6 +413,12 @@ export class TerminalTabManager {
     this.renderTabBar();
     this.requestSaveLayout?.();
 
+    // Fresh new tabs (no persisted buffer, no saved resumeCommand) inherit the
+    // global startup command. Restored sessions keep their own resumeCommand.
+    if (!session.resumeCommand && !opts?.bufferSerial && this.settings.startupCommand) {
+      session.resumeCommand = this.settings.startupCommand;
+    }
+
     // Install the auto-resume OSC listener before the PTY spawns so the first
     // prompt's OSC 133 A is caught. Any tab with a `resumeCommand` set runs it
     // once the shell is ready. Callers that don't want this just omit the field.
