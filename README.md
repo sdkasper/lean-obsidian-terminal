@@ -9,6 +9,7 @@ An embedded terminal panel for [Obsidian](https://obsidian.md), powered by [xter
 - Full PTY terminal (not a simple command runner) with interactive shell support
 - Multiple terminal tabs with rename and color-coding support
 - Auto-detects your shell: PowerShell 7 / Windows PowerShell / cmd.exe on Windows, `$SHELL` on macOS/Linux
+- Startup command: configure a command that runs automatically in every new terminal tab once the shell is ready (e.g. `claude`, `npm run dev`)
 - Four built-in color themes: Obsidian Dark, Obsidian Light, Monokai, Solarized Dark
 - Customizable ribbon and panel tab icon (any Lucide icon name)
 - Clickable URLs in terminal output
@@ -23,6 +24,7 @@ An embedded terminal panel for [Obsidian](https://obsidian.md), powered by [xter
 - Rescue recently closed tabs via command palette (ring buffer of the last 10 closed sessions by default)
 - Optional [Claude Code](https://claude.com/claude-code) integration: auto-maintained registry of sessions with clickable Resume links
 - Wiki-link autocomplete: type `[[` in the terminal to open a vault note picker and insert as a wiki-link, vault-relative path, or absolute path (useful for passing note paths to CLI tools)
+- Vertical tab bar: position the tab bar on the left or right side of the pane for better tab readability on wide monitors
 
 ## Installation
 
@@ -60,6 +62,7 @@ An embedded terminal panel for [Obsidian](https://obsidian.md), powered by [xter
 | Setting | Default | Description |
 |---------|---------|-------------|
 | Shell path | Auto-detect | Path to shell executable. Leave empty for auto-detection |
+| Startup command | none | Command to run automatically when a new terminal tab opens (e.g. `claude`, `npm run dev`) |
 | Font size | 14 | Terminal font size in pixels |
 | Font family | Menlo, Monaco, 'Courier New', monospace | Terminal font stack |
 | Theme | Obsidian Dark | Color theme for the terminal |
@@ -78,6 +81,7 @@ An embedded terminal panel for [Obsidian](https://obsidian.md), powered by [xter
 | Registry sessions to keep | 25 | Max Claude sessions listed in the registry note and picker |
 | Wiki-link autocomplete | Off | Type `[[` in the terminal to open a searchable vault note picker |
 | Wiki-link insertion format | Wiki-link | How an accepted note is inserted: `[[Note]]`, vault-relative path, or absolute path |
+| Tab bar position | Top | Position of the tab bar: Top (horizontal, default), Left, or Right (vertical stacking) |
 
 ## How It Works
 
@@ -150,7 +154,6 @@ node install.mjs     # Install to default vault (D:\LOS Test)
 
 This plugin is built and maintained by a dedicated community. Special thanks to:
 
-- **[@sdkasper](https://github.com/sdkasper)** (Sascha Kasper) — Core architecture, terminal lifecycle management, Windows/macOS/Linux platform support, binary download system, plugin distribution, and ongoing maintenance
 - **[@FarhadGSRX](https://github.com/FarhadGSRX)** — Session persistence, session rescue buffer, Claude Code integration with registry generation and resume links, color scheme catalog with themes.json support
 - **[@ckelsoe](https://github.com/ckelsoe)** — Per-tab color tint customization with editable palette, wiki-link autocomplete with path-insertion modes
 - **[@c00llin](https://github.com/c00llin)** — Terminal location options (Tab Right, Split Tab Right)

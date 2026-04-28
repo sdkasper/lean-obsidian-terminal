@@ -10,6 +10,7 @@ export class TerminalView extends ItemView {
   private tabManager: TerminalTabManager | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private resizeTimer: ReturnType<typeof setTimeout> | null = null;
+  private viewContainer: HTMLElement | null = null;
   /**
    * State passed to setState() before onOpen() has constructed the tab manager.
    * Applied in onOpen() once the manager is ready.
@@ -38,6 +39,8 @@ export class TerminalView extends ItemView {
     const container = this.containerEl.children[1] as HTMLElement;
     container.empty();
     container.addClass("terminal-view-container");
+    this.viewContainer = container;
+    this.applyTabBarPosition();
 
     // Tab bar
     const tabBarEl = container.createDiv({ cls: "terminal-tab-bar" });
@@ -129,6 +132,15 @@ export class TerminalView extends ItemView {
 
   updateCopyOnSelect(): void {
     this.tabManager?.updateCopyOnSelect();
+  }
+
+  applyTabBarPosition(): void {
+    if (!this.viewContainer) return;
+    this.viewContainer.removeClass("terminal-tabs-left");
+    this.viewContainer.removeClass("terminal-tabs-right");
+    const pos = this.plugin.settings.tabBarPosition;
+    if (pos === "left") this.viewContainer.addClass("terminal-tabs-left");
+    else if (pos === "right") this.viewContainer.addClass("terminal-tabs-right");
   }
 
   getState(): Record<string, unknown> {

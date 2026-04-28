@@ -44,6 +44,7 @@ export interface TerminalPluginSettings {
   claudeSessionsMax: number;
   tabColorTintsBackground: boolean;
   tabColors: TabColorDef[];
+  tabBarPosition: "top" | "left" | "right";
   wikiLinkAutocomplete: boolean;
   wikiLinkInsertMode: WikiLinkInsertMode;
 }
@@ -72,6 +73,7 @@ export const DEFAULT_SETTINGS: TerminalPluginSettings = {
   claudeSessionsMax: 25,
   tabColorTintsBackground: true,
   tabColors: DEFAULT_TAB_COLORS.map((c) => ({ ...c })),
+  tabBarPosition: "top",
   wikiLinkAutocomplete: false,
   wikiLinkInsertMode: "wikilink",
 };
@@ -600,6 +602,22 @@ export class TerminalSettingTab extends PluginSettingTab {
           // If there were errors, the registry's load() already showed its own Notice.
         });
     });
+
+    // --- Tab bar ---
+    new Setting(containerEl)
+      .setName("Tab bar position")
+      .setDesc("Position of the tab bar within the terminal panel.")
+      .addDropdown((dropdown) => {
+        dropdown.addOption("top", "Top");
+        dropdown.addOption("left", "Left");
+        dropdown.addOption("right", "Right");
+        dropdown.setValue(this.plugin.settings.tabBarPosition);
+        dropdown.onChange(async (value: string) => {
+          this.plugin.settings.tabBarPosition = value as "top" | "left" | "right";
+          await this.plugin.saveSettings();
+          this.plugin.updateTabBarPosition();
+        });
+      });
 
     // --- Tab colors ---
     new Setting(containerEl).setName("Tab colors").setHeading();
