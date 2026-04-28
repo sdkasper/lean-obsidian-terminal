@@ -480,7 +480,7 @@ export class TerminalTabManager {
       else searchAddon.findPrevious(q, opts);
     };
 
-    const resultsDisposable = searchAddon.onDidChangeResults((result) => {
+    const resultsDisposable = searchAddon.onDidChangeResults((result: { resultIndex: number; resultCount: number } | undefined) => {
       if (!result || result.resultCount === 0) {
         counterEl.setText(searchInput.value ? "No results" : "");
       } else {
