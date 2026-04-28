@@ -21,6 +21,7 @@ export type WikiLinkInsertMode = "wikilink" | "vault-path" | "absolute-path";
 
 export interface TerminalPluginSettings {
   shellPath: string;
+  startupCommand: string;
   fontSize: number;
   fontFamily: string;
   theme: string;
@@ -49,6 +50,7 @@ export interface TerminalPluginSettings {
 
 export const DEFAULT_SETTINGS: TerminalPluginSettings = {
   shellPath: "",
+  startupCommand: "",
   fontSize: 14,
   fontFamily: "Menlo, Monaco, 'Courier New', monospace",
   theme: "obsidian-dark",
