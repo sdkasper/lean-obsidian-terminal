@@ -136,7 +136,7 @@ async function readFirstUserPrompt(filePath: string): Promise<string> {
       const msgContent = message?.content;
       if (typeof msgContent === "string") return truncate(msgContent);
       if (Array.isArray(msgContent)) {
-        for (const block of content) {
+        for (const block of msgContent) {
           if (
             block && typeof block === "object" &&
             (block as { type?: unknown }).type === "text" &&

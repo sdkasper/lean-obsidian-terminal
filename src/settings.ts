@@ -242,11 +242,7 @@ export class TerminalSettingTab extends PluginSettingTab {
     );
   }
 
-  display(): void {
-    const { containerEl } = this;
-    containerEl.empty();
-
-    // --- Terminal binary ---
+  private renderBinarySection(containerEl: HTMLElement): void {
     new Setting(containerEl).setName("Terminal binary").setHeading();
 
     new Setting(containerEl)
@@ -304,8 +300,9 @@ export class TerminalSettingTab extends PluginSettingTab {
             this.display();
           });
       });
+  }
 
-    // --- Behavior ---
+  private renderBehaviorSection(containerEl: HTMLElement): void {
     new Setting(containerEl).setName("Behavior").setHeading();
 
     new Setting(containerEl)
@@ -417,8 +414,9 @@ export class TerminalSettingTab extends PluginSettingTab {
           });
         });
     }
+  }
 
-    // --- Appearance ---
+  private renderAppearanceSection(containerEl: HTMLElement): void {
     new Setting(containerEl).setName("Appearance").setHeading();
 
     new Setting(containerEl)
@@ -602,8 +600,9 @@ export class TerminalSettingTab extends PluginSettingTab {
           // If there were errors, the registry's load() already showed its own Notice.
         });
     });
+  }
 
-    // --- Tab bar ---
+  private renderTabBarSection(containerEl: HTMLElement): void {
     new Setting(containerEl)
       .setName("Tab bar position")
       .setDesc("Position of the tab bar within the terminal panel.")
@@ -619,7 +618,6 @@ export class TerminalSettingTab extends PluginSettingTab {
         });
       });
 
-    // --- Tab colors ---
     new Setting(containerEl).setName("Tab colors").setHeading();
 
     new Setting(containerEl)
@@ -637,8 +635,9 @@ export class TerminalSettingTab extends PluginSettingTab {
     if (this.plugin.settings.tabColorTintsBackground) {
       this.renderTabColorsSection(containerEl);
     }
+  }
 
-    // --- Notifications ---
+  private renderNotificationsSection(containerEl: HTMLElement): void {
     new Setting(containerEl).setName("Notifications").setHeading();
 
     new Setting(containerEl)
@@ -679,8 +678,9 @@ export class TerminalSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           })
       );
+  }
 
-    // --- Session persistence ---
+  private renderPersistenceSection(containerEl: HTMLElement): void {
     new Setting(containerEl).setName("Session persistence").setHeading();
 
     new Setting(containerEl)
@@ -714,8 +714,9 @@ export class TerminalSettingTab extends PluginSettingTab {
             }
           })
       );
+  }
 
-    // --- Claude code integration ---
+  private renderClaudeSection(containerEl: HTMLElement): void {
     new Setting(containerEl).setName("Claude code integration").setHeading();
 
     new Setting(containerEl)
@@ -764,5 +765,17 @@ export class TerminalSettingTab extends PluginSettingTab {
             })
         );
     }
+  }
+
+  display(): void {
+    const { containerEl } = this;
+    containerEl.empty();
+    this.renderBinarySection(containerEl);
+    this.renderBehaviorSection(containerEl);
+    this.renderAppearanceSection(containerEl);
+    this.renderTabBarSection(containerEl);
+    this.renderNotificationsSection(containerEl);
+    this.renderPersistenceSection(containerEl);
+    this.renderClaudeSection(containerEl);
   }
 }
