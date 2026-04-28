@@ -271,6 +271,37 @@ export class TerminalTabManager {
     fallbackTimer = setTimeout(runCommand, 2000);
   }
 
+  /**
+   * Fire `command` once in `session` when the shell is ready (OSC 133 A), with
+   * a 2s fallback for shells without OSC 133. Unlike setupAutoResume, the command
+   * is held in a local closure and never written to `session.resumeCommand`, so it
+   * cannot be accidentally serialized into saved workspace state.
+   */
+  private setupStartupCommand(session: TerminalSession, terminal: Terminal, command: string): void {
+    let executed = false;
+    let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
+    let oscDisposable: { dispose: () => void } | null = null;
+
+    const cleanup = (): void => {
+      if (fallbackTimer) { clearTimeout(fallbackTimer); fallbackTimer = null; }
+      if (oscDisposable) { oscDisposable.dispose(); oscDisposable = null; }
+    };
+
+    const run = (): void => {
+      if (executed) return;
+      executed = true;
+      cleanup();
+      session.pty.write(command + "\r");
+    };
+
+    oscDisposable = terminal.parser.registerOscHandler(133, (data) => {
+      if (data.startsWith("A")) run();
+      return false;
+    });
+
+    fallbackTimer = setTimeout(run, 2000);
+  }
+
   createTab(opts?: CreateTabOpts): TerminalSession {
     sessionCounter++;
     const id = `terminal-${sessionCounter}`;
@@ -413,10 +444,11 @@ export class TerminalTabManager {
     this.renderTabBar();
     this.requestSaveLayout?.();
 
-    // Fresh new tabs (no persisted buffer, no saved resumeCommand) inherit the
-    // global startup command. Restored sessions keep their own resumeCommand.
+    // Fresh new tabs (no persisted buffer, no saved resumeCommand) run the global
+    // startup command. A separate path (not session.resumeCommand) keeps it out of
+    // serialized workspace state so it never re-fires on restore.
     if (!session.resumeCommand && !opts?.bufferSerial && this.settings.startupCommand) {
-      session.resumeCommand = this.settings.startupCommand;
+      this.setupStartupCommand(session, terminal, this.settings.startupCommand);
     }
 
     // Install the auto-resume OSC listener before the PTY spawns so the first
