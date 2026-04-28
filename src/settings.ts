@@ -10,6 +10,15 @@ import {
 
 export type NotificationSound = "beep" | "chime" | "ping" | "pop";
 
+/**
+ * How an accepted wiki-link suggestion is written to the shell.
+ * - "wikilink": classic `[[Note Name]]` (default, vault-friendly).
+ * - "vault-path": vault-relative path (`Folder/Note.md`), for tools that resolve from the vault root.
+ * - "absolute-path": absolute filesystem path. Useful when piping to CLI tools (Claude Code,
+ *   ripgrep, cat, etc.) that expect a real file path argument rather than a wikilink.
+ */
+export type WikiLinkInsertMode = "wikilink" | "vault-path" | "absolute-path";
+
 export interface TerminalPluginSettings {
   shellPath: string;
   fontSize: number;
@@ -34,6 +43,8 @@ export interface TerminalPluginSettings {
   claudeSessionsMax: number;
   tabColorTintsBackground: boolean;
   tabColors: TabColorDef[];
+  wikiLinkAutocomplete: boolean;
+  wikiLinkInsertMode: WikiLinkInsertMode;
 }
 
 export const DEFAULT_SETTINGS: TerminalPluginSettings = {
@@ -59,6 +70,8 @@ export const DEFAULT_SETTINGS: TerminalPluginSettings = {
   claudeSessionsMax: 25,
   tabColorTintsBackground: true,
   tabColors: DEFAULT_TAB_COLORS.map((c) => ({ ...c })),
+  wikiLinkAutocomplete: false,
+  wikiLinkInsertMode: "wikilink",
 };
 
 export class TerminalSettingTab extends PluginSettingTab {
@@ -72,8 +85,6 @@ export class TerminalSettingTab extends PluginSettingTab {
   }
 
   private renderTabColorsSection(container: HTMLElement): void {
-    new Setting(container).setName("Tab colors").setHeading();
-
     container.createDiv({
       cls: "setting-item-description",
       text:
@@ -231,8 +242,11 @@ export class TerminalSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
-    // --- Binary Management ---
+    // --- Terminal binary ---
     new Setting(containerEl).setName("Terminal binary").setHeading();
+
+    new Setting(containerEl)
+      .setName(`Lean Obsidian Terminal v${this.plugin.manifest.version}`);
 
     const bm = this.plugin.binaryManager;
     const { platform, arch } = bm.getPlatformInfo();
@@ -245,7 +259,7 @@ export class TerminalSettingTab extends PluginSettingTab {
     } else if (status === "error") {
       statusDesc = `Error: ${bm.getStatusMessage()}`;
     } else if (status === "downloading") {
-      statusDesc = `Downloading\u2026 ${bm.getStatusMessage()}`;
+      statusDesc = `Downloading… ${bm.getStatusMessage()}`;
     } else {
       statusDesc = `Not installed - ${platform}-${arch}`;
     }
@@ -257,10 +271,10 @@ export class TerminalSettingTab extends PluginSettingTab {
       .setDesc("Download platform-specific node-pty binaries from GitHub")
       .addButton((btn) => {
         btn
-          .setButtonText(status === "downloading" ? "Downloading\u2026" : "Download")
+          .setButtonText(status === "downloading" ? "Downloading…" : "Download")
           .setDisabled(status === "ready" || status === "downloading")
           .onClick(async () => {
-            btn.setButtonText("Downloading\u2026");
+            btn.setButtonText("Downloading…");
             btn.setDisabled(true);
             try {
               await bm.download();
@@ -287,8 +301,8 @@ export class TerminalSettingTab extends PluginSettingTab {
           });
       });
 
-    // --- Appearance & Behavior ---
-    new Setting(containerEl).setName("Appearance & behavior").setHeading();
+    // --- Behavior ---
+    new Setting(containerEl).setName("Behavior").setHeading();
 
     new Setting(containerEl)
       .setName("Shell path")
@@ -304,16 +318,103 @@ export class TerminalSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Font size")
+      .setName("Default location")
+      .setDesc("Where to open the first terminal view")
+      .addDropdown((dropdown) => {
+        dropdown.addOption("bottom", "Split tab bottom");
+        dropdown.addOption("right", "Right panel");
+        dropdown.addOption("tab", "New tab");
+        dropdown.addOption("split-right", "Split vertical");
+        dropdown.setValue(this.plugin.settings.defaultLocation);
+        dropdown.onChange(async (value: string) => {
+          this.plugin.settings.defaultLocation = value as TerminalPluginSettings["defaultLocation"];
+          await this.plugin.saveSettings();
+        });
+      });
+
+    new Setting(containerEl)
+      .setName("Copy on select")
+      .setDesc("Automatically copy selected text to the clipboard")
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.copyOnSelect).onChange(async (value) => {
+          this.plugin.settings.copyOnSelect = value;
+          await this.plugin.saveSettings();
+          this.plugin.updateCopyOnSelect();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName("Scrollback lines")
       .addText((text) =>
         text
-          .setValue(String(this.plugin.settings.fontSize))
+          .setValue(String(this.plugin.settings.scrollback))
           .onChange(async (value) => {
             const num = parseInt(value, 10);
             if (!isNaN(num) && num > 0) {
-              this.plugin.settings.fontSize = num;
+              this.plugin.settings.scrollback = num;
               await this.plugin.saveSettings();
             }
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("Search shortcut")
+      .setDesc("Keyboard shortcut to open the in-terminal search bar. Avoid shortcuts already bound in Obsidian's hotkeys (e.g. Ctrl+Shift+F). Use Ctrl+Alt+F or similar.")
+      .addText((text) =>
+        text
+          .setPlaceholder("Ctrl+Alt+F")
+          .setValue(this.plugin.settings.searchShortcut)
+          .onChange(async (value) => {
+            this.plugin.settings.searchShortcut = value.trim() || "Ctrl+Alt+F";
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("Wiki-link autocomplete")
+      .setDesc(
+        "Type [[ in the terminal to open a dropdown of vault notes. Applies to newly opened tabs.",
+      )
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.wikiLinkAutocomplete).onChange(async (value) => {
+          this.plugin.settings.wikiLinkAutocomplete = value;
+          await this.plugin.saveSettings();
+          this.display();
+        }),
+      );
+
+    if (this.plugin.settings.wikiLinkAutocomplete) {
+      new Setting(containerEl)
+        .setName("Wiki-link insertion format")
+        .setDesc(
+          "What to write when you accept a suggestion. Use a path mode to hand off to CLI tools (Claude Code, ripgrep, cat) that expect a file path instead of [[Note]].",
+        )
+        .addDropdown((dropdown) => {
+          dropdown.addOption("wikilink", "Wiki-link ([[Note]])");
+          dropdown.addOption("vault-path", "Vault-relative path (Folder/Note.md)");
+          dropdown.addOption("absolute-path", "Absolute path");
+          dropdown.setValue(this.plugin.settings.wikiLinkInsertMode);
+          dropdown.onChange(async (value: string) => {
+            this.plugin.settings.wikiLinkInsertMode = value as WikiLinkInsertMode;
+            await this.plugin.saveSettings();
+          });
+        });
+    }
+
+    // --- Appearance ---
+    new Setting(containerEl).setName("Appearance").setHeading();
+
+    new Setting(containerEl)
+      .setName("Font size")
+      .setDesc("Terminal font size in pixels (8-32)")
+      .addSlider((slider) =>
+        slider
+          .setLimits(8, 32, 1)
+          .setValue(this.plugin.settings.fontSize)
+          .setDynamicTooltip()
+          .onChange(async (value) => {
+            this.plugin.settings.fontSize = value;
+            await this.plugin.saveSettings();
           })
       );
 
@@ -327,6 +428,91 @@ export class TerminalSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           })
       );
+
+    const iconSetting = new Setting(containerEl)
+      .setName("Icon")
+      .setDesc("Lucide icon name for the ribbon and tab (e.g. \"terminal\", \"code-2\", \"zap\"). Browse icons at lucide.dev.");
+
+    let previewEl: HTMLElement | null = null;
+
+    iconSetting.addText((text) => {
+      text
+        .setValue(this.plugin.settings.ribbonIcon)
+        .onChange(async (value) => {
+          const name = value.trim();
+          this.plugin.settings.ribbonIcon = name;
+          await this.plugin.saveSettings();
+          this.plugin.updateIcon(name);
+          if (previewEl) setIcon(previewEl, name || "terminal");
+        });
+    });
+
+    previewEl = iconSetting.controlEl.createSpan({ cls: "lean-terminal-icon-preview" });
+    setIcon(previewEl, this.plugin.settings.ribbonIcon);
+
+    iconSetting.addButton((btn) => {
+      btn.setButtonText("Reset").onClick(async () => {
+        this.plugin.settings.ribbonIcon = DEFAULT_SETTINGS.ribbonIcon;
+        await this.plugin.saveSettings();
+        this.plugin.updateIcon(DEFAULT_SETTINGS.ribbonIcon);
+        this.display();
+      });
+    });
+
+    new Setting(containerEl)
+      .setName("Cursor blink")
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.cursorBlink).onChange(async (value) => {
+          this.plugin.settings.cursorBlink = value;
+          await this.plugin.saveSettings();
+        })
+      );
+
+    const bgSetting = new Setting(containerEl)
+      .setName("Background color")
+      .setDesc("Override the theme background. Leave empty for theme default.");
+
+    let bgTextInput: HTMLInputElement;
+    let bgColorPicker: ColorComponent | undefined;
+
+    bgSetting.addText((text) => {
+      bgTextInput = text.inputEl;
+      text
+        .setPlaceholder("Theme default")
+        .setValue(this.plugin.settings.backgroundColor)
+        .onChange(async (value) => {
+          this.plugin.settings.backgroundColor = value;
+          if (/^#[0-9a-fA-F]{6}$/.test(value) && bgColorPicker) {
+            bgColorPicker.setValue(value);
+          }
+          await this.plugin.saveSettings();
+          this.plugin.updateTerminalBackgrounds();
+        });
+    });
+
+    bgSetting.addColorPicker((picker) => {
+      bgColorPicker = picker;
+      const current = this.plugin.settings.backgroundColor;
+      if (/^#[0-9a-fA-F]{6}$/.test(current)) {
+        picker.setValue(current);
+      }
+      picker.onChange(async (value) => {
+        this.plugin.settings.backgroundColor = value;
+        if (bgTextInput) bgTextInput.value = value;
+        await this.plugin.saveSettings();
+        this.plugin.updateTerminalBackgrounds();
+      });
+    });
+
+    bgSetting.addButton((btn) => {
+      btn.setButtonText("Reset").onClick(async () => {
+        this.plugin.settings.backgroundColor = "";
+        if (bgTextInput) bgTextInput.value = "";
+        if (bgColorPicker) bgColorPicker.setValue("#000000");
+        await this.plugin.saveSettings();
+        this.plugin.updateTerminalBackgrounds();
+      });
+    });
 
     let themeDropdown: DropdownComponent | undefined;
 
@@ -369,7 +555,6 @@ export class TerminalSettingTab extends PluginSettingTab {
         .onClick(async () => {
           await this.plugin.themeRegistry.load();
 
-          // Repopulate dropdown options in place.
           // The `if` guard is defensive — the addDropdown callback runs
           // synchronously above, so themeDropdown is always assigned before
           // this handler can fire.
@@ -379,7 +564,6 @@ export class TerminalSettingTab extends PluginSettingTab {
               themeDropdown.addOption(name, name);
             }
 
-            // Keep current selection if still valid, else fall back to obsidian-dark
             const current = this.plugin.settings.theme;
             const available = this.plugin.themeRegistry.getNames();
             if (available.includes(current)) {
@@ -402,82 +586,8 @@ export class TerminalSettingTab extends PluginSettingTab {
         });
     });
 
-    const iconSetting = new Setting(containerEl)
-      .setName("Icon")
-      .setDesc("Lucide icon name for the ribbon and tab (e.g. \"terminal\", \"code-2\", \"zap\"). Browse icons at lucide.dev.");
-
-    let previewEl: HTMLElement | null = null;
-
-    iconSetting.addText((text) => {
-      text
-        .setValue(this.plugin.settings.ribbonIcon)
-        .onChange(async (value) => {
-          const name = value.trim();
-          this.plugin.settings.ribbonIcon = name;
-          await this.plugin.saveSettings();
-          this.plugin.updateIcon(name);
-          if (previewEl) setIcon(previewEl, name || "terminal");
-        });
-    });
-
-    previewEl = iconSetting.controlEl.createSpan({ cls: "lean-terminal-icon-preview" });
-    setIcon(previewEl, this.plugin.settings.ribbonIcon);
-
-    iconSetting.addButton((btn) => {
-      btn.setButtonText("Reset").onClick(async () => {
-        this.plugin.settings.ribbonIcon = DEFAULT_SETTINGS.ribbonIcon;
-        await this.plugin.saveSettings();
-        this.plugin.updateIcon(DEFAULT_SETTINGS.ribbonIcon);
-        this.display();
-      });
-    });
-
-    const bgSetting = new Setting(containerEl)
-      .setName("Background color")
-      .setDesc("Override the theme background. Leave empty for theme default.");
-
-    let bgTextInput: HTMLInputElement;
-    let bgColorPicker: ColorComponent | undefined;
-
-    bgSetting.addText((text) => {
-      bgTextInput = text.inputEl;
-      text
-        .setPlaceholder("Theme default")
-        .setValue(this.plugin.settings.backgroundColor)
-        .onChange(async (value) => {
-          this.plugin.settings.backgroundColor = value;
-          // Sync color picker if value is a valid hex color
-          if (/^#[0-9a-fA-F]{6}$/.test(value) && bgColorPicker) {
-            bgColorPicker.setValue(value);
-          }
-          await this.plugin.saveSettings();
-          this.plugin.updateTerminalBackgrounds();
-        });
-    });
-
-    bgSetting.addColorPicker((picker) => {
-      bgColorPicker = picker;
-      const current = this.plugin.settings.backgroundColor;
-      if (/^#[0-9a-fA-F]{6}$/.test(current)) {
-        picker.setValue(current);
-      }
-      picker.onChange(async (value) => {
-        this.plugin.settings.backgroundColor = value;
-        if (bgTextInput) bgTextInput.value = value;
-        await this.plugin.saveSettings();
-        this.plugin.updateTerminalBackgrounds();
-      });
-    });
-
-    bgSetting.addButton((btn) => {
-      btn.setButtonText("Reset").onClick(async () => {
-        this.plugin.settings.backgroundColor = "";
-        if (bgTextInput) bgTextInput.value = "";
-        if (bgColorPicker) bgColorPicker.setValue("#000000");
-        await this.plugin.saveSettings();
-        this.plugin.updateTerminalBackgrounds();
-      });
-    });
+    // --- Tab colors ---
+    new Setting(containerEl).setName("Tab colors").setHeading();
 
     new Setting(containerEl)
       .setName("Tab color tints terminal background")
@@ -494,68 +604,6 @@ export class TerminalSettingTab extends PluginSettingTab {
     if (this.plugin.settings.tabColorTintsBackground) {
       this.renderTabColorsSection(containerEl);
     }
-
-    new Setting(containerEl)
-      .setName("Cursor blink")
-      .addToggle((toggle) =>
-        toggle.setValue(this.plugin.settings.cursorBlink).onChange(async (value) => {
-          this.plugin.settings.cursorBlink = value;
-          await this.plugin.saveSettings();
-        })
-      );
-
-    new Setting(containerEl)
-      .setName("Copy on select")
-      .setDesc("Automatically copy selected text to the clipboard")
-      .addToggle((toggle) =>
-        toggle.setValue(this.plugin.settings.copyOnSelect).onChange(async (value) => {
-          this.plugin.settings.copyOnSelect = value;
-          await this.plugin.saveSettings();
-          this.plugin.updateCopyOnSelect();
-        })
-      );
-
-    new Setting(containerEl)
-      .setName("Scrollback lines")
-      .addText((text) =>
-        text
-          .setValue(String(this.plugin.settings.scrollback))
-          .onChange(async (value) => {
-            const num = parseInt(value, 10);
-            if (!isNaN(num) && num > 0) {
-              this.plugin.settings.scrollback = num;
-              await this.plugin.saveSettings();
-            }
-          })
-      );
-
-    new Setting(containerEl)
-      .setName("Search shortcut")
-      .setDesc("Keyboard shortcut to open the in-terminal search bar. Avoid shortcuts already bound in Obsidian's hotkeys (e.g. Ctrl+Shift+F). Use Ctrl+Alt+F or similar.")
-      .addText((text) =>
-        text
-          .setPlaceholder("Ctrl+Alt+F")
-          .setValue(this.plugin.settings.searchShortcut)
-          .onChange(async (value) => {
-            this.plugin.settings.searchShortcut = value.trim() || "Ctrl+Alt+F";
-            await this.plugin.saveSettings();
-          })
-      );
-
-    new Setting(containerEl)
-      .setName("Default location")
-      .setDesc("Where to open the first terminal view")
-      .addDropdown((dropdown) => {
-        dropdown.addOption("bottom", "Split tab bottom");
-        dropdown.addOption("right", "Right panel");
-        dropdown.addOption("tab", "New tab");
-        dropdown.addOption("split-right", "Split vertical");
-        dropdown.setValue(this.plugin.settings.defaultLocation);
-        dropdown.onChange(async (value: string) => {
-          this.plugin.settings.defaultLocation = value as TerminalPluginSettings["defaultLocation"];
-          await this.plugin.saveSettings();
-        });
-      });
 
     // --- Notifications ---
     new Setting(containerEl).setName("Notifications").setHeading();
@@ -587,7 +635,7 @@ export class TerminalSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Notification volume")
-      .setDesc("Volume for the notification sound (0\u2013100)")
+      .setDesc("Volume for the notification sound (0–100)")
       .addSlider((slider) =>
         slider
           .setLimits(0, 100, 1)
@@ -599,7 +647,7 @@ export class TerminalSettingTab extends PluginSettingTab {
           })
       );
 
-    // --- Session Persistence ---
+    // --- Session persistence ---
     new Setting(containerEl).setName("Session persistence").setHeading();
 
     new Setting(containerEl)
@@ -626,7 +674,6 @@ export class TerminalSettingTab extends PluginSettingTab {
             const num = parseInt(value, 10);
             if (!isNaN(num) && num >= 0) {
               this.plugin.settings.recentSessionsMax = num;
-              // Trim the existing ring buffer if the new max is smaller
               if (this.plugin.settings.recentSessions.length > num) {
                 this.plugin.settings.recentSessions.length = num;
               }
@@ -635,7 +682,7 @@ export class TerminalSettingTab extends PluginSettingTab {
           })
       );
 
-    // --- Claude Code Integration ---
+    // --- Claude code integration ---
     new Setting(containerEl).setName("Claude code integration").setHeading();
 
     new Setting(containerEl)
@@ -647,7 +694,7 @@ export class TerminalSettingTab extends PluginSettingTab {
         toggle.setValue(this.plugin.settings.enableClaudeIntegration).onChange(async (value) => {
           this.plugin.settings.enableClaudeIntegration = value;
           await this.plugin.saveSettings();
-          this.display(); // rebuild UI to show/hide Claude-specific settings
+          this.display();
         })
       );
 
@@ -684,12 +731,5 @@ export class TerminalSettingTab extends PluginSettingTab {
             })
         );
     }
-
-    // --- About ---
-    new Setting(containerEl).setName("About").setHeading();
-
-    new Setting(containerEl)
-      .setName("Plugin version")
-      .setDesc(`Lean Obsidian Terminal v${this.plugin.manifest.version}`);
   }
 }

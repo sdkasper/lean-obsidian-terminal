@@ -1,4 +1,4 @@
-import { Notice } from "obsidian";
+import { Notice, App, FileSystemAdapter } from "obsidian";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
@@ -12,6 +12,7 @@ import { ThemeRegistry } from "./theme-registry";
 import type { TerminalPluginSettings, NotificationSound } from "./settings";
 import type { BinaryManager } from "./binary-manager";
 import type { SavedTab } from "./session-state";
+import { WikiLinkAutocomplete, type AutocompleteEntry } from "./wikilink-autocomplete";
 
 const SEARCH_DECORATIONS = {
   matchBackground: "#ffff00",
@@ -75,6 +76,7 @@ export interface TerminalSession {
   mode2031: boolean;
   /** Whether this tab is pinned and cannot be closed. */
   pinned: boolean;
+  autocomplete: WikiLinkAutocomplete | null;
 }
 
 /** Options for restoring a tab from persisted state (via setState). */
@@ -275,6 +277,15 @@ function registerColorReporting(session: TerminalSession): void {
 }
 
 
+function quotePath(rawPath: string, shellPath: string): string {
+  if (!rawPath.includes(" ")) return rawPath;
+  const lower = shellPath.toLowerCase();
+  if (lower.includes("bash") || lower.includes("zsh") || lower.includes("sh")) {
+    return `'${rawPath}'`;
+  }
+  return `"${rawPath}"`;
+}
+
 export class TerminalTabManager {
   private sessions: TerminalSession[] = [];
   private activeId: string | null = null;
@@ -291,8 +302,10 @@ export class TerminalTabManager {
   private onSessionClose?: (tab: SavedTab) => void;
   /** Set true by any terminal write/resize; consumed by the view's periodic save timer. */
   private outputDirty = false;
+  private readonly app: App;
 
   constructor(
+    app: App,
     tabBarEl: HTMLElement,
     terminalHostEl: HTMLElement,
     settings: TerminalPluginSettings,
@@ -305,6 +318,7 @@ export class TerminalTabManager {
     requestSaveLayout?: () => void,
     onSessionClose?: (tab: SavedTab) => void
   ) {
+    this.app = app;
     this.tabBarEl = tabBarEl;
     this.terminalHostEl = terminalHostEl;
     this.settings = settings;
@@ -421,6 +435,10 @@ export class TerminalTabManager {
 
     // Intercept clipboard shortcuts — Obsidian captures them before xterm.js
     terminal.attachCustomKeyEventHandler((e: KeyboardEvent) => {
+      // Wiki-link autocomplete swallows navigation keys while its dropdown is open.
+      const s = this.sessions.find((s) => s.id === id);
+      if (s?.autocomplete?.handleKey(e)) return false;
+
       if (e.type !== "keydown") return true;
       const mod = e.metaKey || e.ctrlKey;
 
@@ -455,6 +473,42 @@ export class TerminalTabManager {
     });
 
     const pty = new PtyManager(this.pluginDir);
+
+    // Resolves the string written to the PTY when the user accepts a suggestion.
+    // The two `[[` chars were already echoed (autocomplete observes data, never
+    // consumes), so path modes prepend two DEL chars to erase them before
+    // writing the resolved path.
+    const ERASE_BRACKETS = "\x7f\x7f";
+    const resolveInsertion = (entry: AutocompleteEntry | null, query: string): string => {
+      const mode = this.settings.wikiLinkInsertMode;
+      // entry.path holds the full vault-relative path with extension
+      // (e.g. "Folder/Note.md" or "Drawings/Sketch.canvas"). Path-mode
+      // insertion uses it directly so non-markdown notes work too.
+      if (entry?.isFile && entry.path && (mode === "vault-path" || mode === "absolute-path")) {
+        if (mode === "vault-path") {
+          return `${ERASE_BRACKETS}${quotePath(entry.path, pty.shellPath)}`;
+        }
+        const adapter = this.app.vault.adapter as FileSystemAdapter;
+        const path = window.require("path") as { join: (...parts: string[]) => string; sep: string };
+        const abs = path.join(adapter.getBasePath(), entry.path.split("/").join(path.sep));
+        return `${ERASE_BRACKETS}${quotePath(abs, pty.shellPath)}`;
+      }
+      // Wiki-link mode (default) and unresolved/empty fallbacks.
+      if (entry) return `${entry.name}]]`;
+      if (query.length > 0) return `${query}]]`;
+      return "]]";
+    };
+
+    const autocomplete = this.settings.wikiLinkAutocomplete
+      ? new WikiLinkAutocomplete(
+          this.app,
+          terminal,
+          (d: string) => pty.write(d),
+          containerEl,
+          resolveInsertion,
+        )
+      : null;
+
     const session: TerminalSession = {
       id,
       name,
@@ -469,6 +523,7 @@ export class TerminalTabManager {
       parserDisposables: [],
       mode2031: false,
       pinned: false,
+      autocomplete,
     };
     this.sessions.push(session);
     this.switchTab(id);
@@ -517,9 +572,10 @@ export class TerminalTabManager {
         terminal.write(data);
       });
 
-      // Wire data: xterm -> PTY
+      // Wire data: xterm -> PTY. Autocomplete may consume data (returns true) to
+      // prevent keypress-echoed chars from reaching the PTY while active.
       terminal.onData((data: string) => {
-        pty.write(data);
+        if (!session.autocomplete?.handleData(data)) pty.write(data);
       });
 
       pty.onExit(() => {
@@ -562,8 +618,11 @@ export class TerminalTabManager {
 
     const session = this.sessions[idx];
 
+    session.autocomplete?.dispose();
+
     // Capture for recents BEFORE destroying (serialize needs a live xterm)
     this.onSessionClose?.(this.captureSession(session));
+
 
     session.pty.kill();
     session.terminal.dispose();
