@@ -22,6 +22,7 @@ An embedded terminal panel for [Obsidian](https://obsidian.md), powered by [xter
 - Session persistence: tabs, names, colors, working directories, and scrollback are restored when Obsidian reopens
 - Rescue recently closed tabs via command palette (ring buffer of the last 10 closed sessions by default)
 - Optional [Claude Code](https://claude.com/claude-code) integration: auto-maintained registry of sessions with clickable Resume links
+- Wiki-link autocomplete: type `[[` in the terminal to open a vault note picker and insert as a wiki-link, vault-relative path, or absolute path (useful for passing note paths to CLI tools)
 
 ## Installation
 
@@ -75,6 +76,8 @@ An embedded terminal panel for [Obsidian](https://obsidian.md), powered by [xter
 | Enable Claude Code integration | Off | Scan `~/.claude/` for sessions, register the `obsidian://lean-terminal` URI handler, include Claude sessions in the restore picker |
 | Registry note path | claude-sessions.md | Vault-relative path to the auto-maintained Claude sessions registry |
 | Registry sessions to keep | 25 | Max Claude sessions listed in the registry note and picker |
+| Wiki-link autocomplete | Off | Type `[[` in the terminal to open a searchable vault note picker |
+| Wiki-link insertion format | Wiki-link | How an accepted note is inserted: `[[Note]]`, vault-relative path, or absolute path |
 
 ## How It Works
 
