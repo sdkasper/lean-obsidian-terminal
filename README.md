@@ -10,6 +10,7 @@ An embedded terminal panel for [Obsidian](https://obsidian.md), powered by [xter
 - Multiple terminal tabs with rename, color-coding, and pinning support
 - Drag files from the Obsidian file explorer or Windows Explorer into the terminal to insert the absolute path (spaces auto-quoted for your shell)
 - Reorder tabs by dragging them left or right in the tab bar
+- Keyboard shortcuts for tab navigation: Next/Previous tab (with wrap-around), Jump to Tab 1-8, or Jump to last tab - bindable under Settings > Hotkeys
 - In-terminal search bar (default shortcut: Ctrl+Alt+F) with match counter, case-sensitive toggle, and highlight decorations
 - Copy on select: automatically copy selected text to the clipboard as you highlight it
 - Auto-detects your shell: PowerShell 7 / Windows PowerShell / cmd.exe on Windows, `$SHELL` on macOS/Linux
