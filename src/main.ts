@@ -7,6 +7,7 @@ import { ThemeRegistry } from "./theme-registry";
 import { openRecentSessionPicker } from "./recent-sessions";
 import { refreshClaudeRegistry, resumeClaudeSession } from "./claude-sessions";
 import type { SavedViewState } from "./session-state";
+import type { TerminalTabManager } from "./terminal-tab-manager";
 
 export default class TerminalPlugin extends Plugin {
   settings: TerminalPluginSettings = DEFAULT_SETTINGS;
@@ -84,6 +85,41 @@ export default class TerminalPlugin extends Plugin {
       name: "Refresh Claude session registry",
       callback: () => void refreshClaudeRegistry(this),
     });
+
+    // Tab navigation commands
+    this.addCommand({
+      id: "next-terminal-tab",
+      name: "Next terminal tab",
+      callback: () => this.navigateTerminalTab(1),
+    });
+
+    this.addCommand({
+      id: "prev-terminal-tab",
+      name: "Previous terminal tab",
+      callback: () => this.navigateTerminalTab(-1),
+    });
+
+    this.addCommand({
+      id: "last-terminal-tab",
+      name: "Go to last terminal tab",
+      callback: () => {
+        const mgr = this.getActiveTabManager();
+        if (!mgr) return;
+        mgr.switchToIndex(mgr.getSessions().length - 1);
+      },
+    });
+
+    for (let i = 1; i <= 8; i++) {
+      this.addCommand({
+        id: `terminal-tab-${i}`,
+        name: `Go to terminal tab ${i}`,
+        callback: () => {
+          const mgr = this.getActiveTabManager();
+          if (!mgr) return;
+          mgr.switchToIndex(i - 1);
+        },
+      });
+    }
 
     // URI handler for clickable resume links in the registry note.
     // Gating happens inside resumeClaudeSession — the handler is always registered
@@ -206,6 +242,21 @@ export default class TerminalPlugin extends Plugin {
       await leaf.setViewState({ type: VIEW_TYPE_TERMINAL, active: true });
       void this.app.workspace.revealLeaf(leaf);
     }
+  }
+
+  private getActiveTabManager(): TerminalTabManager | null {
+    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TERMINAL);
+    if (!leaves.length) return null;
+    return (leaves[0].view as TerminalView).getTabManager() ?? null;
+  }
+
+  private navigateTerminalTab(delta: -1 | 1): void {
+    const mgr = this.getActiveTabManager();
+    if (!mgr) return;
+    const count = mgr.getSessions().length;
+    if (count < 2) return;
+    const next = ((mgr.getActiveIndex() + delta) + count) % count;
+    mgr.switchToIndex(next);
   }
 
   async loadSettings(): Promise<void> {
