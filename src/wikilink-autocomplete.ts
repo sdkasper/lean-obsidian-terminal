@@ -9,7 +9,7 @@
 // Adapted for lean-obsidian-terminal: strict null checks, no `as any`,
 // explicit dispose(), isActive() accessor, renamed CSS hooks (`lean-`).
 
-import { App, TFile } from "obsidian";
+import { App, TFile, type EventRef } from "obsidian";
 import type { Terminal, IDisposable } from "@xterm/xterm";
 
 export interface AutocompleteEntry {
@@ -35,7 +35,7 @@ export interface AutocompleteEntry {
  */
 export type ResolveInsertion = (entry: AutocompleteEntry | null, query: string) => string;
 
-const defaultResolveInsertion: ResolveInsertion = (entry, query) => {
+export const defaultResolveInsertion: ResolveInsertion = (entry, query) => {
   if (entry) return `${entry.name}]]`;
   if (query.length > 0) return `${query}]]`;
   return "]]";
@@ -78,7 +78,8 @@ export class WikiLinkAutocomplete {
   private previewEl: HTMLElement | null = null;
   private filterTimer: ReturnType<typeof setTimeout> | null = null;
   private resizeDisposable: IDisposable | null = null;
-  /** Snapshot of vault entries taken on activate(); avoids O(#files) per keystroke. */
+  private vaultEventRefs: EventRef[] = [];
+  /** Snapshot of vault entries taken on activate(); pre-sorted by mtime desc. */
   private cachedEntries: AutocompleteEntry[] | null = null;
   /** Monotonic token; renderPreview discards results whose token is stale. */
   private previewToken = 0;
@@ -99,6 +100,13 @@ export class WikiLinkAutocomplete {
     this.resizeDisposable = this.terminal.onResize(() => {
       if (this.active && this.dropdownEl) this.positionDropdown();
     });
+
+    const invalidate = () => { this.cachedEntries = null; };
+    this.vaultEventRefs = [
+      this.app.vault.on("create", invalidate),
+      this.app.vault.on("delete", invalidate),
+      this.app.vault.on("rename", invalidate),
+    ];
   }
 
   isActive(): boolean {
@@ -196,6 +204,8 @@ export class WikiLinkAutocomplete {
     }
     this.resizeDisposable?.dispose();
     this.resizeDisposable = null;
+    for (const ref of this.vaultEventRefs) this.app.vault.offref(ref);
+    this.vaultEventRefs = [];
     this.removePreview();
     this.removeDropdown();
     this.active = false;
@@ -274,7 +284,8 @@ export class WikiLinkAutocomplete {
       }
     }
 
-    return entries;
+    // Sort by mtime descending once here so filterResults() can slice without re-sorting.
+    return entries.sort((a, b) => b.mtime - a.mtime);
   }
 
   private filterResults(): void {
@@ -288,7 +299,7 @@ export class WikiLinkAutocomplete {
       const all = this.cachedEntries;
 
       if (q.length === 0) {
-        this.results = [...all].sort((a, b) => b.mtime - a.mtime).slice(0, MAX_RESULTS);
+        this.results = all.slice(0, MAX_RESULTS); // already sorted by mtime desc
       } else {
         const prefix: AutocompleteEntry[] = [];
         const contains: AutocompleteEntry[] = [];

@@ -708,7 +708,7 @@ export class TerminalSettingTab extends PluginSettingTab {
             if (!isNaN(num) && num >= 0) {
               this.plugin.settings.recentSessionsMax = num;
               if (this.plugin.settings.recentSessions.length > num) {
-                this.plugin.settings.recentSessions.length = num;
+                this.plugin.settings.recentSessions.splice(num);
               }
               await this.plugin.saveSettings();
             }

@@ -20,7 +20,7 @@ export async function pushRecentSession(plugin: TerminalPlugin, tab: SavedTab): 
   const entry: RecentSession = { ...tab, closedAt: Date.now() };
   plugin.settings.recentSessions.unshift(entry);
   if (plugin.settings.recentSessions.length > max) {
-    plugin.settings.recentSessions.length = max;
+    plugin.settings.recentSessions.splice(max);
   }
   await plugin.saveSettings();
 }
@@ -105,7 +105,9 @@ class UnifiedSessionPicker extends FuzzySuggestModal<PickerItem> {
  * Consumes the entry from recents — closing the tab again will re-add it.
  */
 async function restoreRecent(plugin: TerminalPlugin, session: RecentSession): Promise<void> {
-  const idx = plugin.settings.recentSessions.indexOf(session);
+  const idx = plugin.settings.recentSessions.findIndex(
+    (s) => s.closedAt === session.closedAt && s.name === session.name
+  );
   if (idx >= 0) {
     plugin.settings.recentSessions.splice(idx, 1);
     await plugin.saveSettings();
@@ -132,7 +134,7 @@ async function restoreClaude(plugin: TerminalPlugin, entry: ClaudeSessionEntry):
   await openTabOrView(plugin, opts);
 }
 
-function relativeTime(ms: number): string {
+export function relativeTime(ms: number): string {
   const sec = Math.floor(ms / 1000);
   if (sec < 60) return sec <= 1 ? "just now" : `${sec}s ago`;
   const min = Math.floor(sec / 60);

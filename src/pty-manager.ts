@@ -87,7 +87,7 @@ export class PtyManager {
   private ptyProcess: IPtyProcess | null = null;
   private nodePty: NodePtyModule | null = null;
   private pluginDir: string;
-  private _shellPath: string = '';
+  private _shellPath: string = "";
 
   constructor(pluginDir: string) {
     this.pluginDir = pluginDir;
@@ -162,7 +162,4 @@ export class PtyManager {
     this.ptyProcess = null;
   }
 
-  get pid(): number | undefined {
-    return this.ptyProcess?.pid;
-  }
 }

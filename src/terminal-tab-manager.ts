@@ -17,12 +17,12 @@ import type { SavedTab } from "./session-state";
 import { WikiLinkAutocomplete, type AutocompleteEntry } from "./wikilink-autocomplete";
 
 const SEARCH_DECORATIONS = {
-  matchBackground: "#ffff00",
-  matchBorder: "#ffff00",
-  matchOverviewRuler: "#ffff00",
-  activeMatchBackground: "#ff6600",
-  activeMatchBorder: "#ff0000",
-  activeMatchColorOverviewRuler: "#ff0000",
+  matchBackground: "#ffff0050",
+  matchBorder: "#ffff0090",
+  matchOverviewRuler: "#ffff0090",
+  activeMatchBackground: "#ff660090",
+  activeMatchBorder: "#ff660090",
+  activeMatchColorOverviewRuler: "#ff660090",
 } as const;
 
 interface ParsedShortcut {
@@ -94,7 +94,6 @@ export interface CreateTabOpts {
   bufferSerial?: string;
   resumeCommand?: string;
 }
-
 
 /** Play a notification sound via the Web Audio API. */
 function playNotificationSound(sound: NotificationSound, volume: number): void {

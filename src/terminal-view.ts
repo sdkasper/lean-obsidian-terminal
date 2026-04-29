@@ -34,7 +34,7 @@ export class TerminalView extends ItemView {
     return this.plugin.settings.ribbonIcon;
   }
 
-  // eslint-disable-next-line @typescript-eslint/require-await -- onOpen must satisfy Promise<void> return type of parent ItemView; no actual async work here
+  // async: satisfies ItemView.onOpen() → Promise<void>; no actual async work here
   async onOpen(): Promise<void> {
     const container = this.containerEl.children[1] as HTMLElement;
     container.empty();
@@ -110,7 +110,7 @@ export class TerminalView extends ItemView {
     );
   }
 
-  // eslint-disable-next-line @typescript-eslint/require-await -- onClose must satisfy Promise<void> return type of parent ItemView; no actual async work here
+  // async: satisfies ItemView.onClose() → Promise<void>; no actual async work here
   async onClose(): Promise<void> {
     if (this.resizeTimer) clearTimeout(this.resizeTimer);
     this.resizeObserver?.disconnect();
@@ -157,7 +157,7 @@ export class TerminalView extends ItemView {
     return { ...state };
   }
 
-  // eslint-disable-next-line @typescript-eslint/require-await -- async required by parent View.setState signature; restore is synchronous
+  // async: satisfies View.setState() → Promise<void>; restore is synchronous
   async setState(state: unknown, result: ViewStateResult): Promise<void> {
     result.history = false;
     const parsed = parseSavedViewState(state);

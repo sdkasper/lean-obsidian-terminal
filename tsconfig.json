@@ -9,7 +9,7 @@
     "strict": true,
     "moduleResolution": "bundler",
     "isolatedModules": true,
-    "lib": ["DOM", "ES2018", "ES2021.String"]
+    "lib": ["DOM", "ES2018"]
   },
   "include": ["src/**/*.ts"]
 }

@@ -1,11 +1,12 @@
 {
   "name": "lean-terminal",
-  "version": "0.12.2",
+  "version": "0.12.3",
   "description": "Embedded terminal for Obsidian using xterm.js and node-pty",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",
-    "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production"
+    "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+    "test": "vitest run"
   },
   "keywords": [
     "obsidian",
@@ -20,7 +21,8 @@
     "esbuild": "^0.25.0",
     "node-pty": "^1.0.0",
     "obsidian": "^1.7.0",
-    "typescript": "^5.8.0"
+    "typescript": "^5.8.0",
+    "vitest": "^3.0.0"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.10.0",
