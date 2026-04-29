@@ -717,10 +717,10 @@ export class TerminalSettingTab extends PluginSettingTab {
   }
 
   private renderClaudeSection(containerEl: HTMLElement): void {
-    new Setting(containerEl).setName("Claude code integration").setHeading();
+    new Setting(containerEl).setName("Claude Code integration").setHeading();
 
     new Setting(containerEl)
-      .setName("Enable Claude code integration")
+      .setName("Enable Claude Code integration")
       .setDesc(
         "Detect Claude sessions, register a uri handler for in-app resume links, and show Claude sessions in the restore picker."
       )

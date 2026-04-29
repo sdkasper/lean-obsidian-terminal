@@ -138,7 +138,7 @@ A full security review of the codebase was conducted covering code-level vulnera
 
 **Binary download integrity:**
 
-When the plugin downloads native `node-pty` binaries from GitHub Releases, it verifies their SHA-256 checksum against a `checksums.json` file published alongside the release. Checksum verification is mandatory — if `checksums.json` is unreachable or does not contain an entry for the downloaded asset, the installation is aborted.
+When the plugin downloads native `node-pty` binaries from GitHub Releases, it verifies their SHA-256 checksum against a `checksums.json` file published alongside the release. Checksum verification is mandatory - if `checksums.json` is unreachable or does not contain an entry for the downloaded asset, the installation is aborted.
 
 SHA-256 checksums for each release are also published in `checksums.json` attached to every [GitHub Release](https://github.com/sdkasper/lean-obsidian-terminal/releases) for manual verification.
 
@@ -164,11 +164,11 @@ node install.mjs     # Install to default vault (D:\LOS Test)
 
 This plugin is built and maintained by a dedicated community. Special thanks to:
 
-- **[@FarhadGSRX](https://github.com/FarhadGSRX)** — Session persistence, session rescue buffer, Claude Code integration with registry generation and resume links, color scheme catalog with themes.json support
-- **[@ckelsoe](https://github.com/ckelsoe)** — Per-tab color tint customization with editable palette, wiki-link autocomplete with path-insertion modes
-- **[@c00llin](https://github.com/c00llin)** — Terminal location options (Tab Right, Split Tab Right)
-- **[@kkugot](https://github.com/kkugot)** — Emoji rendering fixes, system theme detection with terminal color reporting protocol
-- **[@CHodder5](https://github.com/CHodder5)** — Zsh startup file forwarding (.zshenv and .zprofile) via ZDOTDIR override
+- **[@FarhadGSRX](https://github.com/FarhadGSRX)** - Session persistence, session rescue buffer, Claude Code integration with registry generation and resume links, color scheme catalog with themes.json support
+- **[@ckelsoe](https://github.com/ckelsoe)** - Per-tab color tint customization with editable palette, wiki-link autocomplete with path-insertion modes
+- **[@c00llin](https://github.com/c00llin)** - Terminal location options (Tab Right, Split Tab Right)
+- **[@kkugot](https://github.com/kkugot)** - Emoji rendering fixes, system theme detection with terminal color reporting protocol
+- **[@CHodder5](https://github.com/CHodder5)** - Zsh startup file forwarding (.zshenv and .zprofile) via ZDOTDIR override
 
 ## License
 
