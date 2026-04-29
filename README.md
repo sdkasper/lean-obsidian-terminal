@@ -14,7 +14,7 @@ An embedded terminal panel for [Obsidian](https://obsidian.md), powered by [xter
 - Copy on select: automatically copy selected text to the clipboard as you highlight it
 - Auto-detects your shell: PowerShell 7 / Windows PowerShell / cmd.exe on Windows, `$SHELL` on macOS/Linux
 - Startup command: configure a command that runs automatically in every new terminal tab once the shell is ready (e.g. `claude`, `npm run dev`)
-- Four built-in color themes: Obsidian Dark, Obsidian Light, Monokai, Solarized Dark
+- 12 built-in color themes (Obsidian Dark, Obsidian Light, Monokai, Solarized Dark, and more); extend or override via themes.json
 - Customizable ribbon and panel tab icon (any Lucide icon name)
 - Clickable URLs in terminal output
 - Auto-resize on panel resize
@@ -97,7 +97,7 @@ An embedded terminal panel for [Obsidian](https://obsidian.md), powered by [xter
 
 The plugin uses xterm.js for terminal rendering and node-pty for native pseudo-terminal support. node-pty spawns a real shell process (PowerShell, bash, etc.) and connects its stdin/stdout to xterm.js via Obsidian's Electron runtime. This gives you a fully interactive terminal - not just command execution.
 
-On Windows, the plugin uses the winpty backend because Obsidian's Electron renderer does not support Worker threads required by ConPTY.
+On Windows, the plugin uses the ConPTY backend (correct UTF-8 and emoji support). A patched `windowsConoutConnection.js` replaces node-pty's Worker thread with inline socket piping so ConPTY works inside Obsidian's Electron renderer, which does not support Worker thread construction.
 
 ## Session Persistence
 
