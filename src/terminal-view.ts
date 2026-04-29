@@ -1,6 +1,6 @@
 import { FileSystemAdapter, ItemView, WorkspaceLeaf, type ViewStateResult } from "obsidian";
 import { VIEW_TYPE_TERMINAL } from "./constants";
-import { TerminalTabManager } from "./terminal-tab-manager";
+import { TerminalTabManager, type TabManagerOptions } from "./terminal-tab-manager";
 import { pushRecentSession } from "./recent-sessions";
 import type TerminalPlugin from "./main";
 import type { SavedViewState } from "./session-state";
@@ -64,20 +64,20 @@ export class TerminalView extends ItemView {
     );
 
     // Create tab manager and first terminal
-    this.tabManager = new TerminalTabManager(
-      this.app,
+    const tabManagerOpts: TabManagerOptions = {
+      app: this.app,
       tabBarEl,
       terminalHostEl,
-      this.plugin.settings,
+      settings: this.plugin.settings,
       cwd,
       pluginDir,
-      this.plugin.binaryManager,
-      this.plugin.themeRegistry,
-      undefined,
-      () => this.leaf.detach(),
-      () => { void this.app.workspace.requestSaveLayout(); },
-      (tab) => { void pushRecentSession(this.plugin, tab); }
-    );
+      binaryManager: this.plugin.binaryManager,
+      themeRegistry: this.plugin.themeRegistry,
+      onTabsEmpty: () => this.leaf.detach(),
+      requestSaveLayout: () => { void this.app.workspace.requestSaveLayout(); },
+      onSessionClose: (tab) => { void pushRecentSession(this.plugin, tab); },
+    };
+    this.tabManager = new TerminalTabManager(tabManagerOpts);
 
     if (this.pendingState) {
       // setState already fired (edge case) — apply its state

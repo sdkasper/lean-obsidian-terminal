@@ -1,4 +1,5 @@
 import { Notice, App, FileSystemAdapter } from "obsidian";
+import type { AppWithDrag, ElectronWithWebUtils, FileWithPath } from "./obsidian-internals";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
@@ -231,17 +232,17 @@ function extractDropPath(e: DragEvent, app: App): string | null {
   if (e.dataTransfer?.files.length) {
     const file = e.dataTransfer.files[0];
     try {
-      const { webUtils } = (window as any).require("electron");
+      const { webUtils } = window.require("electron") as ElectronWithWebUtils;
       const p = webUtils.getPathForFile(file);
       if (p) return p;
     } catch {
-      const p = (file as any).path;
+      const p = (file as FileWithPath).path;
       if (p) return p;
     }
   }
 
   // Obsidian internal file drag
-  const draggable = (app as any).dragManager?.draggable;
+  const draggable = (app as AppWithDrag).dragManager?.draggable;
   if (draggable?.file) {
     const adapter = app.vault.adapter as FileSystemAdapter;
     const pathMod = window.require("path") as { join: (...p: string[]) => string; sep: string };
@@ -250,6 +251,21 @@ function extractDropPath(e: DragEvent, app: App): string | null {
   }
 
   return null;
+}
+
+export interface TabManagerOptions {
+  app: App;
+  tabBarEl: HTMLElement;
+  terminalHostEl: HTMLElement;
+  settings: TerminalPluginSettings;
+  cwd: string;
+  pluginDir: string;
+  binaryManager: BinaryManager;
+  themeRegistry: ThemeRegistry;
+  onActiveChange?: () => void;
+  onTabsEmpty?: () => void;
+  requestSaveLayout?: () => void;
+  onSessionClose?: (tab: SavedTab) => void;
 }
 
 export class TerminalTabManager {
@@ -272,32 +288,19 @@ export class TerminalTabManager {
   private dragSrcId: string | null = null;
   private readonly app: App;
 
-  constructor(
-    app: App,
-    tabBarEl: HTMLElement,
-    terminalHostEl: HTMLElement,
-    settings: TerminalPluginSettings,
-    cwd: string,
-    pluginDir: string,
-    binaryManager: BinaryManager,
-    themeRegistry: ThemeRegistry,
-    onActiveChange?: () => void,
-    onTabsEmpty?: () => void,
-    requestSaveLayout?: () => void,
-    onSessionClose?: (tab: SavedTab) => void
-  ) {
-    this.app = app;
-    this.tabBarEl = tabBarEl;
-    this.terminalHostEl = terminalHostEl;
-    this.settings = settings;
-    this.cwd = cwd;
-    this.pluginDir = pluginDir;
-    this.binaryManager = binaryManager;
-    this.themeRegistry = themeRegistry;
-    this.onActiveChange = onActiveChange;
-    this.onTabsEmpty = onTabsEmpty;
-    this.requestSaveLayout = requestSaveLayout;
-    this.onSessionClose = onSessionClose;
+  constructor(opts: TabManagerOptions) {
+    this.app = opts.app;
+    this.tabBarEl = opts.tabBarEl;
+    this.terminalHostEl = opts.terminalHostEl;
+    this.settings = opts.settings;
+    this.cwd = opts.cwd;
+    this.pluginDir = opts.pluginDir;
+    this.binaryManager = opts.binaryManager;
+    this.themeRegistry = opts.themeRegistry;
+    this.onActiveChange = opts.onActiveChange;
+    this.onTabsEmpty = opts.onTabsEmpty;
+    this.requestSaveLayout = opts.requestSaveLayout;
+    this.onSessionClose = opts.onSessionClose;
   }
 
   /** Capture a session's current state as a SavedTab (used on close for recents). */
@@ -431,7 +434,7 @@ export class TerminalTabManager {
 
     const isFileDrag = (e: DragEvent): boolean =>
       !!e.dataTransfer?.types.includes("Files") ||
-      !!(this.app as any).dragManager?.draggable;
+      !!(this.app as AppWithDrag).dragManager?.draggable;
 
     const showLabel = (e: DragEvent) => {
       dragLabel.addClass("terminal-drag-label-visible");
