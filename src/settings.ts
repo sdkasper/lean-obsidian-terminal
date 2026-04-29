@@ -1,6 +1,6 @@
 import { App, ColorComponent, DropdownComponent, Notice, PluginSettingTab, Setting, setIcon } from "obsidian";
 import type TerminalPlugin from "./main";
-import type { RecentSession } from "./session-state";
+import type { RecentSession, SavedViewState } from "./session-state";
 import {
   DEFAULT_TAB_COLORS,
   DEFAULT_TINT_STRENGTH,
@@ -47,6 +47,8 @@ export interface TerminalPluginSettings {
   tabBarPosition: "top" | "left" | "right";
   wikiLinkAutocomplete: boolean;
   wikiLinkInsertMode: WikiLinkInsertMode;
+  /** Saved by closeTerminal(); restored by activateTerminal(). Cleared after restore. */
+  lastViewState?: SavedViewState;
 }
 
 export const DEFAULT_SETTINGS: TerminalPluginSettings = {

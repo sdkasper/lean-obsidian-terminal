@@ -6,6 +6,7 @@ import { BinaryManager } from "./binary-manager";
 import { ThemeRegistry } from "./theme-registry";
 import { openRecentSessionPicker } from "./recent-sessions";
 import { refreshClaudeRegistry, resumeClaudeSession } from "./claude-sessions";
+import type { SavedViewState } from "./session-state";
 
 export default class TerminalPlugin extends Plugin {
   settings: TerminalPluginSettings = DEFAULT_SETTINGS;
@@ -37,8 +38,8 @@ export default class TerminalPlugin extends Plugin {
     });
 
     // Ribbon icon
-    this.ribbonEl = this.addRibbonIcon(this.settings.ribbonIcon, "Toggle terminal", () => {
-      this.toggleTerminal();
+    this.ribbonEl = this.addRibbonIcon(this.settings.ribbonIcon, "Open terminal", () => {
+      void this.activateTerminal();
     });
 
     // Commands
@@ -151,12 +152,31 @@ export default class TerminalPlugin extends Plugin {
     }
 
     if (leaf) {
-      await leaf.setViewState({ type: VIEW_TYPE_TERMINAL, active: true });
+      const savedState = this.settings.lastViewState;
+      await leaf.setViewState({
+        type: VIEW_TYPE_TERMINAL,
+        active: true,
+        state: (savedState ?? {}) as Record<string, unknown>,
+      });
       void this.app.workspace.revealLeaf(leaf);
+
+      if (savedState) {
+        this.settings.lastViewState = undefined;
+        void this.saveSettings();
+      }
     }
   }
 
   closeTerminal(): void {
+    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TERMINAL);
+    if (leaves.length > 0) {
+      const view = leaves[0].view as TerminalView;
+      const state = view.getState() as Record<string, unknown>;
+      if (Array.isArray(state.tabs) && state.tabs.length > 0 && typeof state.activeIndex === "number") {
+        this.settings.lastViewState = state as unknown as SavedViewState;
+        void this.saveSettings();
+      }
+    }
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_TERMINAL);
   }
 

@@ -93,6 +93,7 @@ export interface CreateTabOpts {
   cwd?: string;
   bufferSerial?: string;
   resumeCommand?: string;
+  pinned?: boolean;
 }
 
 /** Play a notification sound via the Web Audio API. */
@@ -310,6 +311,7 @@ export class TerminalTabManager {
       cwd: session.cwd,
       bufferSerial: this.settings.persistBuffer ? session.serializeAddon.serialize() : undefined,
       resumeCommand: session.resumeCommand,
+      pinned: session.pinned || undefined,
     };
   }
 
@@ -724,7 +726,7 @@ export class TerminalTabManager {
       resumeCommand: opts?.resumeCommand,
       parserDisposables: [],
       mode2031: false,
-      pinned: false,
+      pinned: opts?.pinned ?? false,
       autocomplete,
       dragLabel,
       searchAddon,

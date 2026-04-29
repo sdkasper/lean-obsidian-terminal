@@ -22,6 +22,8 @@ export interface SavedTab {
    * (e.g. "claude --resume <uuid>").
    */
   resumeCommand?: string;
+  /** Whether this tab was pinned when state was captured. */
+  pinned?: boolean;
 }
 
 export interface SavedViewState {
