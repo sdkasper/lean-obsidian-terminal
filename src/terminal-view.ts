@@ -187,6 +187,7 @@ export class TerminalView extends ItemView {
         cwd: tab.cwd,
         bufferSerial: tab.bufferSerial,
         resumeCommand: tab.resumeCommand,
+        pinned: tab.pinned,
       });
     }
 
