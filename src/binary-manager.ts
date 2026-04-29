@@ -1,4 +1,6 @@
 import { requestUrl } from "obsidian";
+// @ts-ignore — esbuild raw-text plugin inlines this file as a string at build time
+import WINDOWS_CONOUT_PATCH from "../patches/windowsConoutConnection.js?raw";
 
 export type BinaryStatus = "not-installed" | "checking" | "downloading" | "ready" | "error";
 
@@ -12,60 +14,6 @@ interface BinaryManifest {
 const REPO_OWNER = "sdkasper";
 const REPO_NAME = "lean-obsidian-terminal";
 
-// Patched ConoutConnection for Windows — replaces Worker-based implementation
-// with inline socket piping (Worker threads unavailable in Obsidian's renderer).
-const WINDOWS_CONOUT_PATCH = `"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.ConoutConnection = void 0;
-var net = require("net");
-var conout_1 = require("./shared/conout");
-var ConoutConnection = (function () {
-    function ConoutConnection(_conoutPipeName, _useConptyDll) {
-        var _this = this;
-        this._conoutPipeName = _conoutPipeName;
-        this._useConptyDll = _useConptyDll;
-        this._isDisposed = false;
-        this._readyCallbacks = [];
-        this._isReady = false;
-        this._conoutSocket = null;
-        this._server = null;
-        this._drainTimeout = null;
-        this._conoutSocket = new net.Socket();
-        this._conoutSocket.setEncoding('utf8');
-        this._conoutSocket.connect(_conoutPipeName, function () {
-            _this._server = net.createServer(function (workerSocket) {
-                _this._conoutSocket.pipe(workerSocket);
-            });
-            _this._server.listen(conout_1.getWorkerPipeName(_conoutPipeName));
-            _this._isReady = true;
-            _this._readyCallbacks.forEach(function (cb) { cb(); });
-            _this._readyCallbacks = [];
-        });
-        this._conoutSocket.on('error', function () {});
-    }
-    ConoutConnection.prototype.onReady = function (listener) {
-        if (this._isReady) { listener(); } else { this._readyCallbacks.push(listener); }
-        return { dispose: function () {} };
-    };
-    ConoutConnection.prototype.connectSocket = function (socket) {
-        socket.connect(conout_1.getWorkerPipeName(this._conoutPipeName));
-    };
-    ConoutConnection.prototype.dispose = function () {
-        var _this = this;
-        if (!this._useConptyDll && this._isDisposed) { return; }
-        this._isDisposed = true;
-        if (this._drainTimeout) { clearTimeout(this._drainTimeout); }
-        this._drainTimeout = setTimeout(function () {
-            try {
-                if (_this._server) _this._server.close();
-                if (_this._conoutSocket) _this._conoutSocket.destroy();
-            } catch (e) {}
-        }, 1000);
-    };
-    return ConoutConnection;
-}());
-exports.ConoutConnection = ConoutConnection;
-`;
 
 export class BinaryManager {
   private status: BinaryStatus = "not-installed";
@@ -73,8 +21,6 @@ export class BinaryManager {
   private pluginDir: string;
   private nodePtyDir: string;
   private manifestPath: string;
-  private callbacks: Set<(status: BinaryStatus) => void> = new Set();
-
   private readonly fs: typeof import("fs");
   private readonly path: typeof import("path");
   private readonly os: typeof import("os");
@@ -134,16 +80,9 @@ export class BinaryManager {
         }
       }
 
-      // Check manifest matches current platform
-      if (this.fs.existsSync(this.manifestPath)) {
-        const manifest: BinaryManifest = JSON.parse(
-          this.fs.readFileSync(this.manifestPath, "utf-8")
-        );
-        if (manifest.platform !== platform || manifest.arch !== arch) {
-          this.setStatus("not-installed");
-          return false;
-        }
-      }
+      // Manifest is informational only (version display via getVersion()).
+      // A stale or mismatched manifest does not override a passing binary check —
+      // the files above are the authoritative signal.
 
       this.setStatus("ready");
       return true;
@@ -271,6 +210,8 @@ export class BinaryManager {
     }
   }
 
+  /** Reads version from the binary manifest. For display only — may be stale
+   *  if the manifest was written by a prior install. Never gate behaviour on it. */
   getVersion(): string | null {
     try {
       if (this.fs.existsSync(this.manifestPath)) {
@@ -301,16 +242,8 @@ export class BinaryManager {
     return this.statusMessage;
   }
 
-  onStatusChange(cb: (status: BinaryStatus) => void): () => void {
-    this.callbacks.add(cb);
-    return () => this.callbacks.delete(cb);
-  }
-
   private setStatus(status: BinaryStatus, message = ""): void {
     this.status = status;
     this.statusMessage = message;
-    for (const cb of this.callbacks) {
-      cb(status);
-    }
   }
 }

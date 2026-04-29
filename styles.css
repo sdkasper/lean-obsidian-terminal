@@ -1,6 +1,8 @@
 /* ============================================================
- * xterm.js core CSS (from @xterm/xterm/css/xterm.css)
+ * xterm.js core CSS — vendored from @xterm/xterm@5.5.0
+ * Source: node_modules/@xterm/xterm/css/xterm.css
  * Must be included — xterm.js does not inject its own styles.
+ * Update this block when upgrading @xterm/xterm.
  * ============================================================ */
 
 .xterm {

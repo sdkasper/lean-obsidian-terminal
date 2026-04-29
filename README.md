@@ -14,7 +14,7 @@ An embedded terminal panel for [Obsidian](https://obsidian.md), powered by [xter
 - Copy on select: automatically copy selected text to the clipboard as you highlight it
 - Auto-detects your shell: PowerShell 7 / Windows PowerShell / cmd.exe on Windows, `$SHELL` on macOS/Linux
 - Startup command: configure a command that runs automatically in every new terminal tab once the shell is ready (e.g. `claude`, `npm run dev`)
-- Four built-in color themes: Obsidian Dark, Obsidian Light, Monokai, Solarized Dark
+- 12 built-in color themes (Obsidian Dark, Obsidian Light, Monokai, Solarized Dark, and more); extend or override via themes.json
 - Customizable ribbon and panel tab icon (any Lucide icon name)
 - Clickable URLs in terminal output
 - Auto-resize on panel resize
@@ -97,7 +97,7 @@ An embedded terminal panel for [Obsidian](https://obsidian.md), powered by [xter
 
 The plugin uses xterm.js for terminal rendering and node-pty for native pseudo-terminal support. node-pty spawns a real shell process (PowerShell, bash, etc.) and connects its stdin/stdout to xterm.js via Obsidian's Electron runtime. This gives you a fully interactive terminal - not just command execution.
 
-On Windows, the plugin uses the winpty backend because Obsidian's Electron renderer does not support Worker threads required by ConPTY.
+On Windows, the plugin uses the ConPTY backend (correct UTF-8 and emoji support). A patched `windowsConoutConnection.js` replaces node-pty's Worker thread with inline socket piping so ConPTY works inside Obsidian's Electron renderer, which does not support Worker thread construction.
 
 ## Session Persistence
 
@@ -138,7 +138,7 @@ A full security review of the codebase was conducted covering code-level vulnera
 
 **Binary download integrity:**
 
-When the plugin downloads native `node-pty` binaries from GitHub Releases, it verifies their SHA-256 checksum against a `checksums.json` file published alongside the release. Checksum verification is mandatory — if `checksums.json` is unreachable or does not contain an entry for the downloaded asset, the installation is aborted.
+When the plugin downloads native `node-pty` binaries from GitHub Releases, it verifies their SHA-256 checksum against a `checksums.json` file published alongside the release. Checksum verification is mandatory - if `checksums.json` is unreachable or does not contain an entry for the downloaded asset, the installation is aborted.
 
 SHA-256 checksums for each release are also published in `checksums.json` attached to every [GitHub Release](https://github.com/sdkasper/lean-obsidian-terminal/releases) for manual verification.
 
@@ -164,11 +164,11 @@ node install.mjs     # Install to default vault (D:\LOS Test)
 
 This plugin is built and maintained by a dedicated community. Special thanks to:
 
-- **[@FarhadGSRX](https://github.com/FarhadGSRX)** — Session persistence, session rescue buffer, Claude Code integration with registry generation and resume links, color scheme catalog with themes.json support
-- **[@ckelsoe](https://github.com/ckelsoe)** — Per-tab color tint customization with editable palette, wiki-link autocomplete with path-insertion modes
-- **[@c00llin](https://github.com/c00llin)** — Terminal location options (Tab Right, Split Tab Right)
-- **[@kkugot](https://github.com/kkugot)** — Emoji rendering fixes, system theme detection with terminal color reporting protocol
-- **[@CHodder5](https://github.com/CHodder5)** — Zsh startup file forwarding (.zshenv and .zprofile) via ZDOTDIR override
+- **[@FarhadGSRX](https://github.com/FarhadGSRX)** - Session persistence, session rescue buffer, Claude Code integration with registry generation and resume links, color scheme catalog with themes.json support
+- **[@ckelsoe](https://github.com/ckelsoe)** - Per-tab color tint customization with editable palette, wiki-link autocomplete with path-insertion modes
+- **[@c00llin](https://github.com/c00llin)** - Terminal location options (Tab Right, Split Tab Right)
+- **[@kkugot](https://github.com/kkugot)** - Emoji rendering fixes, system theme detection with terminal color reporting protocol
+- **[@CHodder5](https://github.com/CHodder5)** - Zsh startup file forwarding (.zshenv and .zprofile) via ZDOTDIR override
 
 ## License
 

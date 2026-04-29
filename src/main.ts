@@ -104,6 +104,17 @@ export default class TerminalPlugin extends Plugin {
         void this.app.workspace.requestSaveLayout.run();
       })
     );
+
+    // Keep terminal themes in sync with Obsidian's dark/light mode toggle.
+    // Only fires when the dark/light class actually flips, not on every class change.
+    let lastDark = document.body.classList.contains("theme-dark");
+    this.themeObserver = new MutationObserver(() => {
+      const isDark = document.body.classList.contains("theme-dark");
+      if (isDark === lastDark) return;
+      lastDark = isDark;
+      this.updateTheme();
+    });
+    this.themeObserver.observe(document.body, { attributes: true, attributeFilter: ["class"] });
   }
 
   onunload(): void {
@@ -221,6 +232,13 @@ export default class TerminalPlugin extends Plugin {
     for (const leaf of leaves) {
       const view = leaf.view as TerminalView;
       view.updateCopyOnSelect();
+    }
+  }
+
+  updateTheme(): void {
+    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_TERMINAL);
+    for (const leaf of leaves) {
+      (leaf.view as TerminalView).getTabManager()?.updateTheme();
     }
   }
 }

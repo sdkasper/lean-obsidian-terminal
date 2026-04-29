@@ -1,4 +1,5 @@
 import { Notice, App, FileSystemAdapter } from "obsidian";
+import type { AppWithDrag, ElectronWithWebUtils, FileWithPath } from "./obsidian-internals";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
@@ -16,12 +17,12 @@ import type { SavedTab } from "./session-state";
 import { WikiLinkAutocomplete, type AutocompleteEntry } from "./wikilink-autocomplete";
 
 const SEARCH_DECORATIONS = {
-  matchBackground: "#ffff00",
-  matchBorder: "#ffff00",
-  matchOverviewRuler: "#ffff00",
-  activeMatchBackground: "#ff6600",
-  activeMatchBorder: "#ff0000",
-  activeMatchColorOverviewRuler: "#ff0000",
+  matchBackground: "#ffff0050",
+  matchBorder: "#ffff0090",
+  matchOverviewRuler: "#ffff0090",
+  activeMatchBackground: "#ff660090",
+  activeMatchBorder: "#ff660090",
+  activeMatchColorOverviewRuler: "#ff660090",
 } as const;
 
 interface ParsedShortcut {
@@ -93,8 +94,6 @@ export interface CreateTabOpts {
   bufferSerial?: string;
   resumeCommand?: string;
 }
-
-let sessionCounter = 0;
 
 /** Play a notification sound via the Web Audio API. */
 function playNotificationSound(sound: NotificationSound, volume: number): void {
@@ -232,17 +231,17 @@ function extractDropPath(e: DragEvent, app: App): string | null {
   if (e.dataTransfer?.files.length) {
     const file = e.dataTransfer.files[0];
     try {
-      const { webUtils } = (window as any).require("electron");
+      const { webUtils } = window.require("electron") as ElectronWithWebUtils;
       const p = webUtils.getPathForFile(file);
       if (p) return p;
     } catch {
-      const p = (file as any).path;
+      const p = (file as FileWithPath).path;
       if (p) return p;
     }
   }
 
   // Obsidian internal file drag
-  const draggable = (app as any).dragManager?.draggable;
+  const draggable = (app as AppWithDrag).dragManager?.draggable;
   if (draggable?.file) {
     const adapter = app.vault.adapter as FileSystemAdapter;
     const pathMod = window.require("path") as { join: (...p: string[]) => string; sep: string };
@@ -251,6 +250,21 @@ function extractDropPath(e: DragEvent, app: App): string | null {
   }
 
   return null;
+}
+
+export interface TabManagerOptions {
+  app: App;
+  tabBarEl: HTMLElement;
+  terminalHostEl: HTMLElement;
+  settings: TerminalPluginSettings;
+  cwd: string;
+  pluginDir: string;
+  binaryManager: BinaryManager;
+  themeRegistry: ThemeRegistry;
+  onActiveChange?: () => void;
+  onTabsEmpty?: () => void;
+  requestSaveLayout?: () => void;
+  onSessionClose?: (tab: SavedTab) => void;
 }
 
 export class TerminalTabManager {
@@ -269,35 +283,23 @@ export class TerminalTabManager {
   private onSessionClose?: (tab: SavedTab) => void;
   /** Set true by any terminal write/resize; consumed by the view's periodic save timer. */
   private outputDirty = false;
+  private sessionCounter = 0;
   private dragSrcId: string | null = null;
   private readonly app: App;
 
-  constructor(
-    app: App,
-    tabBarEl: HTMLElement,
-    terminalHostEl: HTMLElement,
-    settings: TerminalPluginSettings,
-    cwd: string,
-    pluginDir: string,
-    binaryManager: BinaryManager,
-    themeRegistry: ThemeRegistry,
-    onActiveChange?: () => void,
-    onTabsEmpty?: () => void,
-    requestSaveLayout?: () => void,
-    onSessionClose?: (tab: SavedTab) => void
-  ) {
-    this.app = app;
-    this.tabBarEl = tabBarEl;
-    this.terminalHostEl = terminalHostEl;
-    this.settings = settings;
-    this.cwd = cwd;
-    this.pluginDir = pluginDir;
-    this.binaryManager = binaryManager;
-    this.themeRegistry = themeRegistry;
-    this.onActiveChange = onActiveChange;
-    this.onTabsEmpty = onTabsEmpty;
-    this.requestSaveLayout = requestSaveLayout;
-    this.onSessionClose = onSessionClose;
+  constructor(opts: TabManagerOptions) {
+    this.app = opts.app;
+    this.tabBarEl = opts.tabBarEl;
+    this.terminalHostEl = opts.terminalHostEl;
+    this.settings = opts.settings;
+    this.cwd = opts.cwd;
+    this.pluginDir = opts.pluginDir;
+    this.binaryManager = opts.binaryManager;
+    this.themeRegistry = opts.themeRegistry;
+    this.onActiveChange = opts.onActiveChange;
+    this.onTabsEmpty = opts.onTabsEmpty;
+    this.requestSaveLayout = opts.requestSaveLayout;
+    this.onSessionClose = opts.onSessionClose;
   }
 
   /** Capture a session's current state as a SavedTab (used on close for recents). */
@@ -354,6 +356,10 @@ export class TerminalTabManager {
 
     // Fallback for shells without OSC 133 support (e.g. cmd.exe): run after 2s
     fallbackTimer = setTimeout(runCommand, 2000);
+
+    // Ensure the timer and OSC handler are cancelled if the tab closes before
+    // the command fires (prevents writes to a dead PTY and handler leaks).
+    session.parserDisposables.push({ dispose: cleanup });
   }
 
   /**
@@ -385,18 +391,16 @@ export class TerminalTabManager {
     });
 
     fallbackTimer = setTimeout(run, 2000);
+
+    // Ensure the timer and OSC handler are cancelled if the tab closes before
+    // the command fires.
+    session.parserDisposables.push({ dispose: cleanup });
   }
 
-  createTab(opts?: CreateTabOpts): TerminalSession {
-    sessionCounter++;
-    const id = `terminal-${sessionCounter}`;
-    const name = opts?.name ?? `Terminal ${sessionCounter}`;
-    const sessionCwd = opts?.cwd ?? this.cwd;
-
-    // Create container for this session
-    const containerEl = this.terminalHostEl.createDiv({ cls: "terminal-session" });
-
-    // Create xterm.js instance
+  private buildXterm(
+    containerEl: HTMLElement,
+    opts?: CreateTabOpts,
+  ): { terminal: Terminal; fitAddon: FitAddon; serializeAddon: SerializeAddon; searchAddon: SearchAddon } {
     const terminal = new Terminal({
       fontSize: this.settings.fontSize,
       fontFamily: this.settings.fontFamily,
@@ -420,13 +424,16 @@ export class TerminalTabManager {
     terminal.loadAddon(searchAddon);
     terminal.open(containerEl);
 
-    // Drag-and-drop file path insertion
+    return { terminal, fitAddon, serializeAddon, searchAddon };
+  }
+
+  private installDragDrop(containerEl: HTMLElement, pty: PtyManager): HTMLElement {
     const dragLabel = document.body.createDiv({ cls: "terminal-drag-label" });
     dragLabel.setText("Paste path to file");
 
     const isFileDrag = (e: DragEvent): boolean =>
       !!e.dataTransfer?.types.includes("Files") ||
-      !!(this.app as any).dragManager?.draggable;
+      !!(this.app as AppWithDrag).dragManager?.draggable;
 
     const showLabel = (e: DragEvent) => {
       dragLabel.addClass("terminal-drag-label-visible");
@@ -460,7 +467,14 @@ export class TerminalTabManager {
       pty.write(quotePath(path, pty.shellPath));
     });
 
-    // Search overlay
+    return dragLabel;
+  }
+
+  private buildSearchOverlay(
+    containerEl: HTMLElement,
+    terminal: Terminal,
+    searchAddon: SearchAddon,
+  ): { overlayEl: HTMLElement; toggleSearch: () => void; resultsDisposable: IDisposable } {
     const overlayEl = containerEl.createDiv({ cls: "lean-terminal-search-overlay" });
     const searchInput = overlayEl.createEl("input", { type: "text" });
     searchInput.addClass("lean-terminal-search-input");
@@ -526,21 +540,10 @@ export class TerminalTabManager {
     });
     closeSearchBtn.addEventListener("click", () => hideSearch());
 
-    // Replay prior buffer (from persisted state) before the PTY produces new output.
-    // No visual marker is written — markers become part of the serialized buffer and
-    // accumulate across restores.
-    if (opts?.bufferSerial) {
-      terminal.write(opts.bufferSerial);
-    }
+    return { overlayEl, toggleSearch, resultsDisposable };
+  }
 
-    // Mark "output changed since last save" so the view's periodic timer can
-    // trigger a save. We avoid calling requestSaveLayout on every write because
-    // heavy output (e.g. Claude streaming) caused visible input lag when every
-    // chunk scheduled a debounced save-which-serializes-the-whole-buffer.
-    terminal.onWriteParsed(() => { this.outputDirty = true; });
-    terminal.onResize(() => { this.outputDirty = true; });
-
-    // Intercept clipboard shortcuts — Obsidian captures them before xterm.js
+  private installKeyHandler(terminal: Terminal, id: string): void {
     terminal.attachCustomKeyEventHandler((e: KeyboardEvent) => {
       // Wiki-link autocomplete swallows navigation keys while its dropdown is open.
       const s = this.sessions.find((s) => s.id === id);
@@ -586,10 +589,15 @@ export class TerminalTabManager {
 
       return true;
     });
+  }
 
-    const pty = new PtyManager(this.pluginDir);
+  private buildAutocomplete(
+    terminal: Terminal,
+    pty: PtyManager,
+    containerEl: HTMLElement,
+  ): WikiLinkAutocomplete | null {
+    if (!this.settings.wikiLinkAutocomplete) return null;
 
-    // Resolves the string written to the PTY when the user accepts a suggestion.
     // The two `[[` chars were already echoed (autocomplete observes data, never
     // consumes), so path modes prepend two DEL chars to erase them before
     // writing the resolved path.
@@ -614,15 +622,94 @@ export class TerminalTabManager {
       return "]]";
     };
 
-    const autocomplete = this.settings.wikiLinkAutocomplete
-      ? new WikiLinkAutocomplete(
-          this.app,
-          terminal,
-          (d: string) => pty.write(d),
-          containerEl,
-          resolveInsertion,
-        )
-      : null;
+    return new WikiLinkAutocomplete(
+      this.app,
+      terminal,
+      (d: string) => pty.write(d),
+      containerEl,
+      resolveInsertion,
+    );
+  }
+
+  private spawnPty(session: TerminalSession, terminal: Terminal, fitAddon: FitAddon, sessionCwd: string): void {
+    const pty = session.pty;
+    // Double-rAF: first frame renders the container, second guarantees layout is
+    // complete so fitAddon reads correct dimensions. More reliable than a fixed
+    // 100ms timeout, which is too short on slow startup and wasted on fast ones.
+    requestAnimationFrame(() => { requestAnimationFrame(() => {
+      // Abort if the session was destroyed while waiting (e.g. openTabOrView
+      // destroy-and-recreate flow replaces a default tab during these two frames)
+      if (!this.sessions.some((s) => s.id === session.id)) return;
+
+      try {
+        fitAddon.fit();
+      } catch {
+        // ignore
+      }
+
+      const cols = terminal.cols || 80;
+      const rows = terminal.rows || 24;
+
+      if (!this.binaryManager.isReady()) {
+        terminal.write("\r\n\x1b[33mTerminal binaries not installed.\x1b[0m\r\n");
+        terminal.write("Go to Settings → Terminal to download them.\r\n");
+        return;
+      }
+
+      try {
+        pty.spawn(this.settings.shellPath, sessionCwd, cols, rows);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "unknown error";
+        console.error("Terminal: failed to spawn shell", err);
+        terminal.write(`\r\nFailed to spawn shell: ${message}\r\n`);
+        return;
+      }
+
+      // Wire data: PTY -> xterm
+      pty.onData((data: string) => {
+        terminal.write(data);
+      });
+
+      // Wire data: xterm -> PTY. Autocomplete may consume data (returns true) to
+      // prevent keypress-echoed chars from reaching the PTY while active.
+      terminal.onData((data: string) => {
+        if (!session.autocomplete?.handleData(data)) pty.write(data);
+      });
+
+      pty.onExit((exitInfo) => {
+        this.notifyCompletion(session, exitInfo.exitCode);
+        this.forceCloseTab(session.id);
+      });
+    }); });
+  }
+
+  createTab(opts?: CreateTabOpts): TerminalSession {
+    this.sessionCounter++;
+    const id = `terminal-${this.sessionCounter}`;
+    const name = opts?.name ?? `Terminal ${this.sessionCounter}`;
+    const sessionCwd = opts?.cwd ?? this.cwd;
+
+    const containerEl = this.terminalHostEl.createDiv({ cls: "terminal-session" });
+    const { terminal, fitAddon, serializeAddon, searchAddon } = this.buildXterm(containerEl, opts);
+    const pty = new PtyManager(this.pluginDir);
+    const dragLabel = this.installDragDrop(containerEl, pty);
+    const { overlayEl, toggleSearch, resultsDisposable } = this.buildSearchOverlay(containerEl, terminal, searchAddon);
+
+    // Replay prior buffer (from persisted state) before the PTY produces new output.
+    // No visual marker is written — markers become part of the serialized buffer and
+    // accumulate across restores.
+    if (opts?.bufferSerial) terminal.write(opts.bufferSerial);
+
+    // Mark "output changed since last save" so the view's periodic timer can
+    // trigger a save. We avoid calling requestSaveLayout on every write because
+    // heavy output (e.g. Claude streaming) caused visible input lag when every
+    // chunk scheduled a debounced save-which-serializes-the-whole-buffer.
+    terminal.onWriteParsed(() => { this.outputDirty = true; });
+    terminal.onResize(() => { this.outputDirty = true; });
+
+    // Intercept clipboard shortcuts — Obsidian captures them before xterm.js
+    this.installKeyHandler(terminal, id);
+    const autocomplete = this.buildAutocomplete(terminal, pty, containerEl);
 
     const session: TerminalSession = {
       id,
@@ -671,53 +758,7 @@ export class TerminalTabManager {
       this.setupAutoResume(session, terminal);
     }
 
-    // Defer PTY spawn until DOM is laid out so fitAddon gets correct dimensions
-    setTimeout(() => {
-      // Abort if the session was destroyed while waiting (e.g. openTabOrView
-      // destroy-and-recreate flow replaces a default tab during this 100ms window)
-      if (!this.sessions.some((s) => s.id === session.id)) return;
-
-      try {
-        fitAddon.fit();
-      } catch {
-        // ignore
-      }
-
-      const cols = terminal.cols || 80;
-      const rows = terminal.rows || 24;
-
-      if (!this.binaryManager.isReady()) {
-        terminal.write("\r\n\x1b[33mTerminal binaries not installed.\x1b[0m\r\n");
-        terminal.write("Go to Settings \u2192 Terminal to download them.\r\n");
-        return;
-      }
-
-      try {
-        pty.spawn(this.settings.shellPath, sessionCwd, cols, rows);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : "unknown error";
-        console.error("Terminal: failed to spawn shell", err);
-        terminal.write(`\r\nFailed to spawn shell: ${message}\r\n`);
-        return;
-      }
-
-      // Wire data: PTY -> xterm
-      pty.onData((data: string) => {
-        terminal.write(data);
-      });
-
-      // Wire data: xterm -> PTY. Autocomplete may consume data (returns true) to
-      // prevent keypress-echoed chars from reaching the PTY while active.
-      terminal.onData((data: string) => {
-        if (!session.autocomplete?.handleData(data)) pty.write(data);
-      });
-
-      pty.onExit(() => {
-        session.pinned = false;
-        this.closeTab(session.id);
-      });
-    }, 100);
-
+    this.spawnPty(session, terminal, fitAddon, sessionCwd);
     return session;
   }
 
@@ -727,8 +768,9 @@ export class TerminalTabManager {
     for (const session of this.sessions) {
       if (session.id === id) {
         session.containerEl.removeClass("terminal-session-hidden");
-        // Fit after showing
-        setTimeout(() => {
+        // One rAF is enough here: the element is already in the DOM, we just
+        // need to wait for the CSS visibility change to be painted before fit.
+        requestAnimationFrame(() => {
           try {
             session.fitAddon.fit();
             session.pty.resize(session.terminal.cols, session.terminal.rows);
@@ -736,7 +778,7 @@ export class TerminalTabManager {
           } catch {
             // ignore
           }
-        }, 10);
+        });
       } else {
         session.containerEl.addClass("terminal-session-hidden");
       }
@@ -747,6 +789,41 @@ export class TerminalTabManager {
     this.requestSaveLayout?.();
   }
 
+  private teardownSession(session: TerminalSession): void {
+    session.autocomplete?.dispose();
+    for (const d of session.parserDisposables) d.dispose();
+    session.parserDisposables = [];
+    session.pty.kill();
+    session.terminal.dispose();
+    session.containerEl.remove();
+    session.dragLabel.remove();
+  }
+
+  // Used by the PTY exit handler. Bypasses the pin guard intentionally: pinning
+  // protects against *user-initiated* close only. When the process itself exits
+  // there is nothing left to protect, so the tab is always removed.
+  private forceCloseTab(id: string): void {
+    const idx = this.sessions.findIndex((s) => s.id === id);
+    if (idx === -1) return;
+    const session = this.sessions[idx];
+    this.onSessionClose?.(this.captureSession(session));
+    this.teardownSession(session);
+    this.sessions.splice(idx, 1);
+    if (this.activeId === id) {
+      if (this.sessions.length > 0) {
+        this.switchTab(this.sessions[Math.min(idx, this.sessions.length - 1)].id);
+      } else {
+        this.activeId = null;
+      }
+    }
+    if (this.sessions.length === 0 && this.onTabsEmpty) {
+      this.onTabsEmpty();
+      return;
+    }
+    this.renderTabBar();
+    this.requestSaveLayout?.();
+  }
+
   closeTab(id: string): void {
     const idx = this.sessions.findIndex((s) => s.id === id);
     if (idx === -1) return;
@@ -754,18 +831,9 @@ export class TerminalTabManager {
     const session = this.sessions[idx];
     if (session.pinned) return;
 
-    session.autocomplete?.dispose();
-    for (const d of session.parserDisposables) d.dispose();
-    session.parserDisposables = [];
-
     // Capture for recents BEFORE destroying (serialize needs a live xterm)
     this.onSessionClose?.(this.captureSession(session));
-
-
-    session.pty.kill();
-    session.terminal.dispose();
-    session.containerEl.remove();
-    session.dragLabel.remove();
+    this.teardownSession(session);
     this.sessions.splice(idx, 1);
 
     // Switch to adjacent tab if we closed the active one
@@ -836,12 +904,7 @@ export class TerminalTabManager {
       if (saveToRecents) {
         this.onSessionClose?.(this.captureSession(session));
       }
-      for (const d of session.parserDisposables) d.dispose();
-      session.parserDisposables = [];
-      session.pty.kill();
-      session.terminal.dispose();
-      session.containerEl.remove();
-      session.dragLabel.remove();
+      this.teardownSession(session);
     }
     this.sessions = [];
     this.activeId = null;
@@ -1011,7 +1074,7 @@ export class TerminalTabManager {
       }
 
       if (!session.pinned) {
-        const closeBtn = tab.createSpan({ cls: "terminal-tab-close", text: "\u00d7" });
+        const closeBtn = tab.createSpan({ cls: "terminal-tab-close", text: "×" });
         closeBtn.addEventListener("click", (e) => {
           e.stopPropagation();
           this.closeTab(session.id);

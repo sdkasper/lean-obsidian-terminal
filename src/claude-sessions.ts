@@ -118,7 +118,7 @@ async function readSessionsIndex(projectDir: string): Promise<Map<string, Sessio
 }
 
 /** Read the first user (non-meta) message in a JSONL session file, truncated. */
-async function readFirstUserPrompt(filePath: string): Promise<string> {
+export async function readFirstUserPrompt(filePath: string): Promise<string> {
   const fs = (window.require("fs") as typeof import("fs")).promises;
   try {
     const content = await fs.readFile(filePath, "utf-8");
@@ -136,7 +136,7 @@ async function readFirstUserPrompt(filePath: string): Promise<string> {
       const msgContent = message?.content;
       if (typeof msgContent === "string") return truncate(msgContent);
       if (Array.isArray(msgContent)) {
-        for (const block of content) {
+        for (const block of msgContent) {
           if (
             block && typeof block === "object" &&
             (block as { type?: unknown }).type === "text" &&

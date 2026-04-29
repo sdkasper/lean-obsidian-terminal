@@ -6,12 +6,10 @@
     "module": "ESNext",
     "target": "ES2018",
     "allowJs": true,
-    "noImplicitAny": true,
-    "moduleResolution": "node",
-    "importHelpers": true,
+    "strict": true,
+    "moduleResolution": "bundler",
     "isolatedModules": true,
-    "strictNullChecks": true,
-    "lib": ["DOM", "ES2018", "ES2021.String"]
+    "lib": ["DOM", "ES2018"]
   },
   "include": ["src/**/*.ts"]
 }

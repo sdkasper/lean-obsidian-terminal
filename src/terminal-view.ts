@@ -1,6 +1,6 @@
 import { FileSystemAdapter, ItemView, WorkspaceLeaf, type ViewStateResult } from "obsidian";
 import { VIEW_TYPE_TERMINAL } from "./constants";
-import { TerminalTabManager } from "./terminal-tab-manager";
+import { TerminalTabManager, type TabManagerOptions } from "./terminal-tab-manager";
 import { pushRecentSession } from "./recent-sessions";
 import type TerminalPlugin from "./main";
 import type { SavedViewState } from "./session-state";
@@ -34,7 +34,7 @@ export class TerminalView extends ItemView {
     return this.plugin.settings.ribbonIcon;
   }
 
-  // eslint-disable-next-line @typescript-eslint/require-await -- onOpen must satisfy Promise<void> return type of parent ItemView; no actual async work here
+  // async: satisfies ItemView.onOpen() → Promise<void>; no actual async work here
   async onOpen(): Promise<void> {
     const container = this.containerEl.children[1] as HTMLElement;
     container.empty();
@@ -64,20 +64,20 @@ export class TerminalView extends ItemView {
     );
 
     // Create tab manager and first terminal
-    this.tabManager = new TerminalTabManager(
-      this.app,
+    const tabManagerOpts: TabManagerOptions = {
+      app: this.app,
       tabBarEl,
       terminalHostEl,
-      this.plugin.settings,
+      settings: this.plugin.settings,
       cwd,
       pluginDir,
-      this.plugin.binaryManager,
-      this.plugin.themeRegistry,
-      undefined,
-      () => this.leaf.detach(),
-      () => { void this.app.workspace.requestSaveLayout(); },
-      (tab) => { void pushRecentSession(this.plugin, tab); }
-    );
+      binaryManager: this.plugin.binaryManager,
+      themeRegistry: this.plugin.themeRegistry,
+      onTabsEmpty: () => this.leaf.detach(),
+      requestSaveLayout: () => { void this.app.workspace.requestSaveLayout(); },
+      onSessionClose: (tab) => { void pushRecentSession(this.plugin, tab); },
+    };
+    this.tabManager = new TerminalTabManager(tabManagerOpts);
 
     if (this.pendingState) {
       // setState already fired (edge case) — apply its state
@@ -110,7 +110,7 @@ export class TerminalView extends ItemView {
     );
   }
 
-  // eslint-disable-next-line @typescript-eslint/require-await -- onClose must satisfy Promise<void> return type of parent ItemView; no actual async work here
+  // async: satisfies ItemView.onClose() → Promise<void>; no actual async work here
   async onClose(): Promise<void> {
     if (this.resizeTimer) clearTimeout(this.resizeTimer);
     this.resizeObserver?.disconnect();
@@ -157,7 +157,7 @@ export class TerminalView extends ItemView {
     return { ...state };
   }
 
-  // eslint-disable-next-line @typescript-eslint/require-await -- async required by parent View.setState signature; restore is synchronous
+  // async: satisfies View.setState() → Promise<void>; restore is synchronous
   async setState(state: unknown, result: ViewStateResult): Promise<void> {
     result.history = false;
     const parsed = parseSavedViewState(state);
