@@ -100,6 +100,16 @@ export default class TerminalPlugin extends Plugin {
     });
 
     this.addCommand({
+      id: "first-terminal-tab",
+      name: "Go to first terminal tab",
+      callback: () => {
+        const mgr = this.getActiveTabManager();
+        if (!mgr) return;
+        mgr.switchToIndex(0);
+      },
+    });
+
+    this.addCommand({
       id: "last-terminal-tab",
       name: "Go to last terminal tab",
       callback: () => {
