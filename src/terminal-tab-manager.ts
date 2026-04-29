@@ -631,10 +631,12 @@ export class TerminalTabManager {
 
   private spawnPty(session: TerminalSession, terminal: Terminal, fitAddon: FitAddon, sessionCwd: string): void {
     const pty = session.pty;
-    // Defer PTY spawn until DOM is laid out so fitAddon gets correct dimensions
-    setTimeout(() => {
+    // Double-rAF: first frame renders the container, second guarantees layout is
+    // complete so fitAddon reads correct dimensions. More reliable than a fixed
+    // 100ms timeout, which is too short on slow startup and wasted on fast ones.
+    requestAnimationFrame(() => { requestAnimationFrame(() => {
       // Abort if the session was destroyed while waiting (e.g. openTabOrView
-      // destroy-and-recreate flow replaces a default tab during this 100ms window)
+      // destroy-and-recreate flow replaces a default tab during these two frames)
       if (!this.sessions.some((s) => s.id === session.id)) return;
 
       try {
@@ -674,10 +676,9 @@ export class TerminalTabManager {
 
       pty.onExit((exitInfo) => {
         this.notifyCompletion(session, exitInfo.exitCode);
-        session.pinned = false;
-        this.closeTab(session.id);
+        this.forceCloseTab(session.id);
       });
-    }, 100);
+    }); });
   }
 
   createTab(opts?: CreateTabOpts): TerminalSession {
@@ -765,8 +766,9 @@ export class TerminalTabManager {
     for (const session of this.sessions) {
       if (session.id === id) {
         session.containerEl.removeClass("terminal-session-hidden");
-        // Fit after showing
-        setTimeout(() => {
+        // One rAF is enough here: the element is already in the DOM, we just
+        // need to wait for the CSS visibility change to be painted before fit.
+        requestAnimationFrame(() => {
           try {
             session.fitAddon.fit();
             session.pty.resize(session.terminal.cols, session.terminal.rows);
@@ -774,7 +776,7 @@ export class TerminalTabManager {
           } catch {
             // ignore
           }
-        }, 10);
+        });
       } else {
         session.containerEl.addClass("terminal-session-hidden");
       }
@@ -793,6 +795,31 @@ export class TerminalTabManager {
     session.terminal.dispose();
     session.containerEl.remove();
     session.dragLabel.remove();
+  }
+
+  // Used by the PTY exit handler. Bypasses the pin guard intentionally: pinning
+  // protects against *user-initiated* close only. When the process itself exits
+  // there is nothing left to protect, so the tab is always removed.
+  private forceCloseTab(id: string): void {
+    const idx = this.sessions.findIndex((s) => s.id === id);
+    if (idx === -1) return;
+    const session = this.sessions[idx];
+    this.onSessionClose?.(this.captureSession(session));
+    this.teardownSession(session);
+    this.sessions.splice(idx, 1);
+    if (this.activeId === id) {
+      if (this.sessions.length > 0) {
+        this.switchTab(this.sessions[Math.min(idx, this.sessions.length - 1)].id);
+      } else {
+        this.activeId = null;
+      }
+    }
+    if (this.sessions.length === 0 && this.onTabsEmpty) {
+      this.onTabsEmpty();
+      return;
+    }
+    this.renderTabBar();
+    this.requestSaveLayout?.();
   }
 
   closeTab(id: string): void {

@@ -80,16 +80,9 @@ export class BinaryManager {
         }
       }
 
-      // Check manifest matches current platform
-      if (this.fs.existsSync(this.manifestPath)) {
-        const manifest: BinaryManifest = JSON.parse(
-          this.fs.readFileSync(this.manifestPath, "utf-8")
-        );
-        if (manifest.platform !== platform || manifest.arch !== arch) {
-          this.setStatus("not-installed");
-          return false;
-        }
-      }
+      // Manifest is informational only (version display via getVersion()).
+      // A stale or mismatched manifest does not override a passing binary check —
+      // the files above are the authoritative signal.
 
       this.setStatus("ready");
       return true;
@@ -217,6 +210,8 @@ export class BinaryManager {
     }
   }
 
+  /** Reads version from the binary manifest. For display only — may be stale
+   *  if the manifest was written by a prior install. Never gate behaviour on it. */
   getVersion(): string | null {
     try {
       if (this.fs.existsSync(this.manifestPath)) {
