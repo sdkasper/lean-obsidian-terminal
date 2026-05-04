@@ -15,30 +15,47 @@ An embedded terminal panel for [Obsidian](https://obsidian.md), powered by [xter
 
 ## Features
 
+### Terminal Core
+
 - Full PTY terminal (not a simple command runner) with interactive shell support
-- Multiple terminal tabs with rename, color-coding, and pinning support
-- Drag files from the Obsidian file explorer or Windows Explorer into the terminal to insert the absolute path (spaces auto-quoted for your shell)
-- Reorder tabs by dragging them left or right in the tab bar
-- Keyboard shortcuts for tab navigation: Next/Previous tab (with wrap-around), Jump to Tab 1-8, or Jump to last tab - bindable under Settings > Hotkeys
-- In-terminal search bar (default shortcut: Ctrl+Alt+F) with match counter, case-sensitive toggle, and highlight decorations
-- Copy on select: automatically copy selected text to the clipboard as you highlight it
 - Auto-detects your shell: PowerShell 7 / Windows PowerShell / cmd.exe on Windows, `$SHELL` on macOS/Linux
-- Startup command: configure a command that runs automatically in every new terminal tab once the shell is ready (e.g. `claude`, `npm run dev`)
-- 12 built-in color themes (Obsidian Dark, Obsidian Light, Monokai, Solarized Dark, and more); extend or override via themes.json
-- Customizable ribbon and panel tab icon (any Lucide icon name)
-- Clickable URLs in terminal output
-- Auto-resize on panel resize
-- Opens at vault root by default; command palette command to open in the current file's folder; right-click any file or folder in the file explorer to open a terminal there
+- Startup command: configure a command that runs automatically in every new tab once the shell is ready (e.g. `claude`, `npm run dev`)
 - Clipboard support: Ctrl+V / Cmd+V paste, Ctrl+C / Cmd+C copy (with selection)
-- Notification sounds when background tab commands finish (4 sound types, adjustable volume)
-- Shift+Enter inserts a newline instead of submitting (muscle memory friendly for Claude Code users)
+- Clickable URLs in terminal output
+- Auto-resize as the panel resizes
+- Shift+Enter inserts a newline without submitting (muscle memory for Claude Code users)
+
+### Tab Management
+
+- Multiple tabs with rename, color-coding, and pinning support
+- Drag tabs to reorder them in the tab bar
+- Keyboard shortcuts: Next/Previous (with wrap-around), Jump to Tab 1-8, Jump to last - bindable under Settings > Hotkeys
+- Tab bar positioning: Top (default), Left, or Right side for wide-monitor layouts
+
+### Vault Integration
+
+- Opens in vault root by default; command palette to open in the current file's folder; right-click any file or folder to open a terminal there
+- Drag files from the Obsidian file explorer or Windows Explorer into the terminal to insert the absolute path (spaces auto-quoted)
+- Wiki-link autocomplete: type `[[` in the terminal to pick any vault note and insert as a wiki-link, vault-relative path, or absolute path
+
+### Search & Selection
+
+- In-terminal search bar (Ctrl+Alt+F): match counter, case-sensitive toggle, and highlight decorations
+- Copy on select: automatically copies selected text to the clipboard as you highlight
+
+### Appearance & Configuration
+
+- 12 built-in color themes (Obsidian Dark, Obsidian Light, Monokai, Solarized Dark, and more); extend or override via themes.json
 - Custom background color override with color picker (match your vault theme)
+- Customizable ribbon and panel tab icon (any Lucide icon name)
 - Configurable: shell path, font size, font family, cursor blink, scrollback, panel location
-- Session persistence: tabs, names, colors, working directories, and scrollback are restored when Obsidian reopens
-- Rescue recently closed tabs via command palette (ring buffer of the last 10 closed sessions by default)
-- Optional [Claude Code](https://claude.com/claude-code) integration: auto-maintained registry of sessions with clickable Resume links
-- Wiki-link autocomplete: type `[[` in the terminal to open a vault note picker and insert as a wiki-link, vault-relative path, or absolute path (useful for passing note paths to CLI tools)
-- Vertical tab bar: position the tab bar on the left or right side of the pane for better tab readability on wide monitors
+
+### Sessions & Persistence
+
+- Session persistence: tab names, colors, working directories, and scrollback are restored when Obsidian reopens
+- Rescue recently closed tabs from the command palette (ring buffer of the last 10 sessions)
+- Notification sounds when background tab commands finish (4 sound types, adjustable volume)
+- Optional [Claude Code](https://claude.com/claude-code) integration: auto-maintained session registry with clickable Resume links and URI handler
 
 ## Installation
 
