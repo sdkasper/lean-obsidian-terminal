@@ -41,8 +41,8 @@
 }
 
 .xterm .composition-view {
-  background: #000;
-  color: #FFF;
+  background: #000000;
+  color: #ffffff;
   display: none;
   position: absolute;
   white-space: nowrap;
@@ -54,7 +54,7 @@
 }
 
 .xterm .xterm-viewport {
-  background-color: #000;
+  background-color: #000000;
   overflow-y: scroll;
   cursor: default;
   position: absolute;
@@ -129,15 +129,15 @@
   overflow: hidden;
 }
 
-.xterm-dim {
-  opacity: 1 !important;
+.xterm .xterm-dim {
+  opacity: 1;
 }
 
 .xterm-underline-1 { text-decoration: underline; }
-.xterm-underline-2 { text-decoration: double underline; }
-.xterm-underline-3 { text-decoration: wavy underline; }
-.xterm-underline-4 { text-decoration: dotted underline; }
-.xterm-underline-5 { text-decoration: dashed underline; }
+.xterm-underline-2 { text-decoration-line: underline; text-decoration-style: double; }
+.xterm-underline-3 { text-decoration-line: underline; text-decoration-style: wavy; }
+.xterm-underline-4 { text-decoration-line: underline; text-decoration-style: dotted; }
+.xterm-underline-5 { text-decoration-line: underline; text-decoration-style: dashed; }
 
 .xterm-overline { text-decoration: overline; }
 .xterm-strikethrough { text-decoration: line-through; }
@@ -386,8 +386,8 @@
 
 /* Prevent Obsidian's view-content from scrolling — xterm handles its own scroll */
 .workspace-leaf-content[data-type="terminal-view"] .view-content {
-  overflow: hidden !important;
-  padding: 0 !important;
+  overflow: hidden;
+  padding: 0;
 }
 
 /* Terminal host fills remaining space */

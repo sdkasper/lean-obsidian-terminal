@@ -185,7 +185,7 @@ export class BinaryManager {
 
       // Write binary manifest
       const manifest: BinaryManifest = {
-        version: version!,
+        version: version,
         platform,
         arch,
         installedAt: new Date().toISOString(),
