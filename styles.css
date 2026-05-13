@@ -134,10 +134,10 @@
 }
 
 .xterm-underline-1 { text-decoration: underline; }
-.xterm-underline-2 { text-decoration-line: underline; text-decoration-style: double; }
-.xterm-underline-3 { text-decoration-line: underline; text-decoration-style: wavy; }
-.xterm-underline-4 { text-decoration-line: underline; text-decoration-style: dotted; }
-.xterm-underline-5 { text-decoration-line: underline; text-decoration-style: dashed; }
+.xterm-underline-2 { text-decoration: underline; }
+.xterm-underline-3 { text-decoration: underline; }
+.xterm-underline-4 { text-decoration: underline; }
+.xterm-underline-5 { text-decoration: underline; }
 
 .xterm-overline { text-decoration: overline; }
 .xterm-strikethrough { text-decoration: line-through; }
