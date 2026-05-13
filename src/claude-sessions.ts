@@ -41,9 +41,10 @@ export async function scanClaudeProjectSessions(
 ): Promise<ClaudeSessionEntry[]> {
   const path = window.require("path") as typeof import("path");
   const fs = (window.require("fs") as typeof import("fs")).promises;
+  const os = window.require("os") as typeof import("os");
 
   const encoded = encodeProjectDir(cwd);
-  const homeDir = process.env.HOME ?? process.env.USERPROFILE ?? "";
+  const homeDir = os.homedir();
   const projectDir = path.join(homeDir, ".claude", "projects", encoded);
 
   let files: string[];

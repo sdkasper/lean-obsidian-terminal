@@ -134,7 +134,7 @@ export class BinaryManager {
 
       // Write zip to temp file
       this.setStatus("downloading", "Extracting...");
-      const tmpDir = process.env.TMPDIR ?? process.env.TEMP ?? process.env.TMP ?? this.path.join(this.pluginDir, "tmp");
+      const tmpDir = this.path.join(this.pluginDir, "tmp");
       const tmpZip = this.path.join(tmpDir, assetName);
       this.fs.writeFileSync(tmpZip, zipBuffer);
 
