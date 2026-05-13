@@ -58,6 +58,10 @@ jobs:
             main.js
             manifest.json
             styles.css
+            # node-pty platform zips and checksums.json are NOT for Obsidian.
+            # They are fetched on-demand by BinaryManager when the user clicks
+            # "Download binaries" in plugin settings. Obsidian only uses
+            # main.js, manifest.json, and styles.css from this release.
             node-pty-*.zip
             checksums.json
           generate_release_notes: true
