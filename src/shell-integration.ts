@@ -114,18 +114,16 @@ export function getShellIntegration(
   // macOS / Linux
   if (lower.includes("zsh") || lower.endsWith("/zsh")) {
     const initFile = ensureScript(scriptDir, "zsh-init.zsh", ZSH_SCRIPT);
-    const os = window.require("os") as typeof import("os");
-    const homeDir = os.homedir();
-    const userZdotdir = process.env.ZDOTDIR || homeDir;
-    // zsh reads startup files from ZDOTDIR; point it to our directory and
-    // provide forwarding scripts for all three per-user config files so that
-    // the user's real environment (PATH, aliases, etc.) is fully loaded.
-    ensureScript(scriptDir, ".zshenv",   `[[ -f "${userZdotdir}/.zshenv"   ]] && source "${userZdotdir}/.zshenv"\n`);
-    ensureScript(scriptDir, ".zprofile", `[[ -f "${userZdotdir}/.zprofile" ]] && source "${userZdotdir}/.zprofile"\n`);
+    // Use the user's ZDOTDIR if set; otherwise let zsh resolve $HOME at runtime.
+    // Passing an empty __LOT_USER_ZDOTDIR lets ZSH_SCRIPT's elif branch source $HOME/.zshrc.
+    const customZdotdir = process.env.ZDOTDIR;
+    const scriptZdotdir = customZdotdir || "${HOME}";
+    ensureScript(scriptDir, ".zshenv",   `[[ -f "${scriptZdotdir}/.zshenv"   ]] && source "${scriptZdotdir}/.zshenv"\n`);
+    ensureScript(scriptDir, ".zprofile", `[[ -f "${scriptZdotdir}/.zprofile" ]] && source "${scriptZdotdir}/.zprofile"\n`);
     ensureScript(scriptDir, ".zshrc",    `source "${initFile}"\n`);
     return {
       env: {
-        __LOT_USER_ZDOTDIR: userZdotdir,
+        __LOT_USER_ZDOTDIR: customZdotdir ?? "",
         ZDOTDIR: scriptDir,
       },
       args: [],

@@ -41,6 +41,7 @@ export interface TerminalPluginSettings {
   recentSessions: RecentSession[];
   // Claude Code integration — all gated on enableClaudeIntegration
   enableClaudeIntegration: boolean;
+  claudeSessionsDir: string;
   claudeRegistryPath: string;
   claudeSessionsMax: number;
   tabColorTintsBackground: boolean;
@@ -73,6 +74,7 @@ export const DEFAULT_SETTINGS: TerminalPluginSettings = {
   recentSessionsMax: 10,
   recentSessions: [],
   enableClaudeIntegration: false,
+  claudeSessionsDir: "",
   claudeRegistryPath: "claude-sessions.md",
   claudeSessionsMax: 25,
   tabColorTintsBackground: true,
@@ -752,6 +754,21 @@ export class TerminalSettingTab extends PluginSettingTab {
       );
 
     if (this.plugin.settings.enableClaudeIntegration) {
+      new Setting(containerEl)
+        .setName("Claude sessions directory")
+        .setDesc(
+          "Path to your Claude Code sessions folder. Example: /Users/yourname/.claude/projects (macOS/Linux) or C:\\Users\\yourname\\.claude\\projects (Windows). Leave empty to disable session history."
+        )
+        .addText((text) =>
+          text
+            .setPlaceholder("~/.claude/projects")
+            .setValue(this.plugin.settings.claudeSessionsDir)
+            .onChange(async (value) => {
+              this.plugin.settings.claudeSessionsDir = value.trim();
+              await this.plugin.saveSettings();
+            })
+        );
+
       new Setting(containerEl)
         .setName("Registry note path")
         .setDesc(

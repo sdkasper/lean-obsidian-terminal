@@ -36,7 +36,7 @@ export async function openRecentSessionPicker(plugin: TerminalPlugin): Promise<v
   if (plugin.settings.enableClaudeIntegration) {
     const cwd = getVaultBasePath(plugin);
     if (cwd) {
-      claudeEntries = await scanClaudeProjectSessions(cwd, plugin.settings.claudeSessionsMax);
+      claudeEntries = await scanClaudeProjectSessions(cwd, plugin.settings.claudeSessionsMax, plugin.settings.claudeSessionsDir);
     }
   }
 
