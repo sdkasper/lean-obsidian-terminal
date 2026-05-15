@@ -1,6 +1,6 @@
 {
   "name": "lean-terminal",
-  "version": "0.16.5",
+  "version": "1.1.0",
   "description": "Embedded terminal for Obsidian using xterm.js and node-pty",
   "main": "main.js",
   "scripts": {

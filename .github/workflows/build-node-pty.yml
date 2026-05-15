@@ -32,6 +32,10 @@ jobs:
           - os: ubuntu-latest
             platform: linux
             arch: x64
+          - os: ubuntu-latest
+            platform: win32
+            arch: arm64
+            use-prebuilt: true
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
@@ -48,7 +52,27 @@ jobs:
           npm init -y
           npm install node-pty@${{ inputs.node-pty-version || '1.1.0' }}
 
+      - name: Package prebuilt ARM64 binaries
+        if: matrix.use-prebuilt == true
+        shell: bash
+        run: |
+          PKG=$RUNNER_TEMP/node-pty-pkg
+          mkdir -p "$PKG/prebuilds/${{ matrix.platform }}-${{ matrix.arch }}"
+
+          # Copy prebuilt binaries from repo
+          if [ -d "arm64-prebuilds/${{ matrix.platform }}-${{ matrix.arch }}" ]; then
+            cp -r "arm64-prebuilds/${{ matrix.platform }}-${{ matrix.arch }}"/* "$PKG/prebuilds/${{ matrix.platform }}-${{ matrix.arch }}/"
+          else
+            echo "ERROR: Prebuilt binaries not found in arm64-prebuilds/${{ matrix.platform }}-${{ matrix.arch }}"
+            exit 1
+          fi
+
+          # Add minimal lib structure for compatibility
+          mkdir -p "$PKG/lib"
+          echo '{"name":"node-pty","version":"1.1.0"}' > "$PKG/package.json"
+
       - name: Package node-pty
+        if: matrix.use-prebuilt != true
         shell: bash
         run: |
           SRC=staging/node_modules/node-pty

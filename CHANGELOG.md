@@ -2,6 +2,16 @@
 
 All notable changes to Lean Obsidian Terminal are documented here.
 
+## 1.1.0 - May 15, 2026
+
+### New
+
+- feat: ARM64 Windows (win32-arm64) binary support - enables plugin on Surface Pro X and ARM64 Windows devices (#62)
+
+### Milestone
+
+- Plugin now available in Obsidian Community Plugin Directory (officially published)
+
 ## 0.16.0 - May 11, 2026
 
 ### New
