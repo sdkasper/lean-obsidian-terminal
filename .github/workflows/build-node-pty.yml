@@ -52,24 +52,34 @@ jobs:
           npm init -y
           npm install node-pty@${{ inputs.node-pty-version || '1.1.0' }}
 
+      - name: Install node-pty for lib files
+        if: matrix.use-prebuilt == true
+        shell: bash
+        run: |
+          mkdir arm64-staging && cd arm64-staging
+          npm init -y
+          npm install node-pty@1.1.0
+
       - name: Package prebuilt ARM64 binaries
         if: matrix.use-prebuilt == true
         shell: bash
         run: |
           PKG=$RUNNER_TEMP/node-pty-pkg
+          SRC=arm64-staging/node_modules/node-pty
           mkdir -p "$PKG/prebuilds/${{ matrix.platform }}-${{ matrix.arch }}"
 
-          # Copy prebuilt binaries from repo
+          # Copy JavaScript library files from npm installation
+          mkdir -p "$PKG/lib"
+          cp -r "$SRC/lib/"* "$PKG/lib/"
+          cp "$SRC/package.json" "$PKG/"
+
+          # Copy prebuilt ARM64 binaries from repo
           if [ -d "arm64-prebuilds/${{ matrix.platform }}-${{ matrix.arch }}" ]; then
             cp -r "arm64-prebuilds/${{ matrix.platform }}-${{ matrix.arch }}"/* "$PKG/prebuilds/${{ matrix.platform }}-${{ matrix.arch }}/"
           else
             echo "ERROR: Prebuilt binaries not found in arm64-prebuilds/${{ matrix.platform }}-${{ matrix.arch }}"
             exit 1
           fi
-
-          # Add minimal lib structure for compatibility
-          mkdir -p "$PKG/lib"
-          echo '{"name":"node-pty","version":"1.1.0"}' > "$PKG/package.json"
 
       - name: Package node-pty
         if: matrix.use-prebuilt != true
