@@ -70,6 +70,21 @@ An embedded terminal panel for [Obsidian](https://obsidian.md), powered by [xter
 
 Or install directly: [community.obsidian.md/plugins/lean-terminal](https://community.obsidian.md/plugins/lean-terminal)
 
+### Troubleshooting Binary Download (ARM64 Windows)
+
+If you see "Failed to download binaries" on an ARM64 Windows device (Surface Pro X, Windows Dev Kit, etc.):
+
+1. **Close all terminal tabs** in Obsidian (the binary may be locked in use)
+2. **Disable the plugin** in Settings, then re-enable it
+3. **Restart Obsidian** completely (not just reload)
+4. **Manually delete** the plugin's `node_modules` folder: browse to `.obsidian/plugins/lean-terminal/node_modules/` in your vault and delete it
+5. **Try downloading binaries again**
+
+If the issue persists, check that:
+- You have write permissions to the plugin directory
+- Your `.obsidian` folder is not synced to a cloud service (OneDrive, iCloud, Dropbox) that may lock files during sync
+- Your antivirus software is not blocking file extraction
+
 ### Via BRAT (beta releases)
 
 1. Install the [BRAT](https://github.com/TfTHacker/obsidian42-brat) plugin if you don't have it
