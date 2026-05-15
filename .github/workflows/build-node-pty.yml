@@ -80,7 +80,6 @@ jobs:
             echo "ERROR: Prebuilt binaries not found in arm64-prebuilds/${{ matrix.platform }}-${{ matrix.arch }}"
             exit 1
           fi
-
       - name: Package node-pty
         if: matrix.use-prebuilt != true
         shell: bash
