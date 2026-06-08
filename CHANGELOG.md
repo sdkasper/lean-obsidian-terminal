@@ -2,6 +2,12 @@
 
 All notable changes to Lean Obsidian Terminal are documented here.
 
+## 1.2.0 - Unreleased
+
+### New
+
+- feat: Public `registerKeyHandler` API — companion plugins can register key handlers that compose with the built-in autocomplete/search handling, in registration order, without forking (#76)
+
 ## 1.1.2 - May 19, 2026
 
 ### Fixed

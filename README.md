@@ -108,6 +108,45 @@ The plugin uses xterm.js for terminal rendering and node-pty for native pseudo-t
 
 On Windows, the plugin uses the ConPTY backend (correct UTF-8 and emoji support). A patched `windowsConoutConnection.js` replaces node-pty's Worker thread with inline socket piping so ConPTY works inside Obsidian's Electron renderer, which does not support Worker thread construction.
 
+## Key Handler API (for plugin developers)
+
+Companion plugins can add their own terminal key bindings — Mac-style line navigation, Vim/Emacs bindings, vendor remaps — without forking, via a small public API on the plugin instance:
+
+```ts
+registerKeyHandler(
+  handler: (e: KeyboardEvent, session: TerminalSession) => boolean
+): () => void   // returns an unregister function
+```
+
+**Execution order.** Registered handlers run in registration order, *before* the built-in autocomplete/search handling:
+
+```
+custom[0] → custom[1] → … → custom[n] → built-in autocomplete/search
+```
+
+**Return semantics.** Return `true` to let the next handler (and ultimately the built-in handling) run; return `false` to consume the event and stop the chain. Handlers see every event type (`keydown`, `keyup`, `keypress`) — filter on `e.type === "keydown"` as below. A handler that throws is logged and skipped, never breaking the chain.
+
+> **Event type note:** the handler receives the DOM `KeyboardEvent` that xterm.js passes to `attachCustomKeyEventHandler` (with `metaKey`, `altKey`, `key`, `type`, `preventDefault()`, …) — *not* xterm's internal `IKeyboardEvent`, which is not part of `@xterm/xterm`'s public type surface.
+
+**Example — Mac-style line navigation in a companion plugin:**
+
+```ts
+const leanTerm = this.app.plugins.plugins["lean-terminal"];
+const unregister = leanTerm.registerKeyHandler((e, session) => {
+  if (e.type !== "keydown") return true;
+  if (e.metaKey && e.key === "ArrowLeft")  { session.pty.write("\x01"); return false; } // ^A → start of line
+  if (e.metaKey && e.key === "ArrowRight") { session.pty.write("\x05"); return false; } // ^E → end of line
+  if (e.altKey  && e.key === "ArrowLeft")  { session.pty.write("\x1bb"); return false; } // ⎋b → back one word
+  if (e.altKey  && e.key === "ArrowRight") { session.pty.write("\x1bf"); return false; } // ⎋f → forward one word
+  return true;
+});
+
+// Call the returned disposer in your plugin's onunload():
+this.register(unregister);
+```
+
+See [Key Handler API](https://github.com/sdkasper/lean-obsidian-terminal/blob/master/docs/key-handler-api.md) for the full reference.
+
 ## Related documents
 
 See [Usage](https://github.com/sdkasper/lean-obsidian-terminal/blob/master/docs/usage.md) for the full command reference.
@@ -119,6 +158,8 @@ See [Session Persistence](https://github.com/sdkasper/lean-obsidian-terminal/blo
 See [Claude Code Integration](https://github.com/sdkasper/lean-obsidian-terminal/blob/master/docs/claude-code-integration.md) for setup and usage.
 
 See [URI Handler](https://github.com/sdkasper/lean-obsidian-terminal/blob/master/docs/uri-handler.md) for the `obsidian://lean-terminal` protocol reference.
+
+See [Key Handler API](https://github.com/sdkasper/lean-obsidian-terminal/blob/master/docs/key-handler-api.md) for the downstream key-handler registration API.
 
 See [Security](https://github.com/sdkasper/lean-obsidian-terminal/blob/master/docs/security.md) for the security review summary.
 

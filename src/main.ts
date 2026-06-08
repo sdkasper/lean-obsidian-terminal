@@ -8,13 +8,45 @@ import { openRecentSessionPicker } from "./recent-sessions";
 import { refreshClaudeRegistry, resumeClaudeSession } from "./claude-sessions";
 import type { SavedViewState } from "./session-state";
 import type { TerminalTabManager } from "./terminal-tab-manager";
+import { KeyHandlerRegistry, type TerminalKeyHandler } from "./key-handler-registry";
+
+// Public API types for downstream plugins (e.g. companion key-binding plugins).
+export type { TerminalSession } from "./terminal-tab-manager";
+export type { TerminalKeyHandler } from "./key-handler-registry";
 
 export default class TerminalPlugin extends Plugin {
   settings: TerminalPluginSettings = DEFAULT_SETTINGS;
   binaryManager!: BinaryManager;
   themeRegistry!: ThemeRegistry;
+  /** Shared across every terminal view/tab; drives the public registerKeyHandler API. */
+  readonly keyHandlerRegistry = new KeyHandlerRegistry();
   private ribbonEl: HTMLElement | null = null;
   private themeObserver: MutationObserver | null = null;
+
+  /**
+   * Public API. Register a key handler invoked on every keystroke in every terminal
+   * tab — current and future — before the built-in autocomplete/search handling.
+   *
+   * Downstream usage:
+   * ```ts
+   * const leanTerm = this.app.plugins.plugins["lean-terminal"];
+   * const unregister = leanTerm.registerKeyHandler((e, session) => {
+   *   if (e.type !== "keydown") return true;
+   *   if (e.altKey && e.key === "ArrowLeft") { session.pty.write("\x1bb"); return false; }
+   *   return true;
+   * });
+   * // later, in your plugin's onunload: unregister();
+   * ```
+   *
+   * Handlers run in registration order; the first to return `false` consumes the
+   * event and stops the chain (including the built-in handler). Return `true` to pass
+   * the event along. A handler that throws is logged and skipped.
+   *
+   * @returns an unregister function (idempotent). Call it in your plugin's onunload.
+   */
+  registerKeyHandler(handler: TerminalKeyHandler): () => void {
+    return this.keyHandlerRegistry.register(handler);
+  }
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -198,6 +230,7 @@ export default class TerminalPlugin extends Plugin {
   onunload(): void {
     this.themeObserver?.disconnect();
     this.themeObserver = null;
+    this.keyHandlerRegistry.clear();
 
     // Detach after a tick to avoid disrupting the settings modal
     window.setTimeout(() => {

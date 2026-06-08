@@ -16,6 +16,7 @@ import { resolveShellPath } from "./settings";
 import type { BinaryManager } from "./binary-manager";
 import type { SavedTab } from "./session-state";
 import { WikiLinkAutocomplete, type AutocompleteEntry } from "./wikilink-autocomplete";
+import type { KeyHandlerRegistry } from "./key-handler-registry";
 
 const SEARCH_DECORATIONS = {
   matchBackground: "#ffff0050",
@@ -266,6 +267,8 @@ export interface TabManagerOptions {
   pluginDir: string;
   binaryManager: BinaryManager;
   themeRegistry: ThemeRegistry;
+  /** Plugin-level registry of downstream key handlers, shared across all views/tabs. */
+  keyHandlers: KeyHandlerRegistry;
   onActiveChange?: () => void;
   onTabsEmpty?: () => void;
   requestSaveLayout?: () => void;
@@ -282,6 +285,7 @@ export class TerminalTabManager {
   private pluginDir: string;
   private binaryManager: BinaryManager;
   private themeRegistry: ThemeRegistry;
+  private keyHandlers: KeyHandlerRegistry;
   private onActiveChange?: () => void;
   private onTabsEmpty?: () => void;
   private requestSaveLayout?: () => void;
@@ -301,6 +305,7 @@ export class TerminalTabManager {
     this.pluginDir = opts.pluginDir;
     this.binaryManager = opts.binaryManager;
     this.themeRegistry = opts.themeRegistry;
+    this.keyHandlers = opts.keyHandlers;
     this.onActiveChange = opts.onActiveChange;
     this.onTabsEmpty = opts.onTabsEmpty;
     this.requestSaveLayout = opts.requestSaveLayout;
@@ -605,8 +610,14 @@ export class TerminalTabManager {
 
   private installKeyHandler(terminal: Terminal, id: string): void {
     terminal.attachCustomKeyEventHandler((e: KeyboardEvent) => {
-      // Wiki-link autocomplete swallows navigation keys while its dropdown is open.
       const s = this.sessions.find((s) => s.id === id);
+
+      // Downstream-registered handlers run first, in registration order. If any
+      // returns false the event is consumed and the chain — including the built-in
+      // autocomplete/search handling below — stops. See KeyHandlerRegistry.
+      if (s && !this.keyHandlers.dispatch(e, s)) return false;
+
+      // Wiki-link autocomplete swallows navigation keys while its dropdown is open.
       if (s?.autocomplete?.handleKey(e)) return false;
 
       if (e.type !== "keydown") return true;

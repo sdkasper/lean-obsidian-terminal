@@ -73,6 +73,7 @@ export class TerminalView extends ItemView {
       pluginDir,
       binaryManager: this.plugin.binaryManager,
       themeRegistry: this.plugin.themeRegistry,
+      keyHandlers: this.plugin.keyHandlerRegistry,
       onTabsEmpty: () => this.leaf.detach(),
       requestSaveLayout: () => { void this.app.workspace.requestSaveLayout(); },
       onSessionClose: (tab) => { void pushRecentSession(this.plugin, tab); },
