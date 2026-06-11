@@ -55,6 +55,7 @@ export interface TerminalPluginSettings {
   tabBarPosition: "top" | "left" | "right";
   wikiLinkAutocomplete: boolean;
   wikiLinkInsertMode: WikiLinkInsertMode;
+  readlineShortcuts: boolean;
   /** Saved by closeTerminal(); restored by activateTerminal(). Cleared after restore. */
   lastViewState?: SavedViewState;
 }
@@ -92,6 +93,7 @@ export const DEFAULT_SETTINGS: TerminalPluginSettings = {
   tabBarPosition: "top",
   wikiLinkAutocomplete: false,
   wikiLinkInsertMode: "wikilink",
+  readlineShortcuts: true,
 };
 
 export function resolveShellPath(settings: TerminalPluginSettings): string {
@@ -462,6 +464,19 @@ export class TerminalSettingTab extends PluginSettingTab {
           });
         });
     }
+
+    new Setting(containerEl)
+      .setName("Readline shortcuts")
+      .setDesc(
+        "Enable Ctrl+K (kill to end), Ctrl+U (kill to start), Ctrl+W (kill word), " +
+        "Ctrl+E (end of line), Ctrl+L (clear screen). Applies to all open and new tabs.",
+      )
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.readlineShortcuts).onChange(async (value) => {
+          this.plugin.settings.readlineShortcuts = value;
+          await this.plugin.saveSettings();
+        }),
+      );
   }
 
   private renderAppearanceSection(containerEl: HTMLElement): void {
