@@ -832,6 +832,24 @@ export class TerminalTabManager {
         return false;
       }
 
+      // Readline shortcuts (Ctrl+K/U/W/E/L) — gate on settings toggle
+      if (this.settings.readlineShortcuts && e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey) {
+        const readlineCode: Record<string, string> = {
+          k: "\x0b",  // kill to end of line
+          u: "\x15",  // kill to start of line
+          w: "\x17",  // kill previous word
+          e: "\x05",  // move to end of line
+          l: "\x0c",  // clear screen
+        };
+        const code = readlineCode[e.key.toLowerCase()];
+        if (code) {
+          e.preventDefault();
+          const s = this.sessions.find((s) => s.id === id);
+          if (s) s.pty.write(code);
+          return false;
+        }
+      }
+
       // Shift+Enter: send newline without submitting
       if (e.shiftKey && e.key === "Enter") {
         e.preventDefault();
