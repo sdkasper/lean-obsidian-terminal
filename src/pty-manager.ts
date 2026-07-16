@@ -37,7 +37,8 @@ function loadNodePty(pluginDir: string): NodePtyModule {
   }
 }
 
-function getDefaultShell(): string {
+/** The shell binary a new PTY will spawn when no explicit shellPath is set. */
+export function getDefaultShell(): string {
   if (Platform.isWin) {
     const pwshPaths = [
       process.env.ProgramFiles + "\\PowerShell\\7\\pwsh.exe",                    // standard installer
