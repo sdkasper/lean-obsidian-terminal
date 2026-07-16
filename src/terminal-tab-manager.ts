@@ -7,6 +7,7 @@ import { SerializeAddon } from "@xterm/addon-serialize";
 import { SearchAddon } from "@xterm/addon-search";
 import type { IDisposable } from "@xterm/xterm";
 import { PtyManager } from "./pty-manager";
+import { findPathCandidates, splitLineSuffix } from "./path-links";
 import { isObsidianDark } from "./themes";
 import { mixHex } from "./color-utils";
 import { findTabColor, DEFAULT_TINT_STRENGTH, MAX_TINT_STRENGTH } from "./tab-colors";
@@ -313,42 +314,6 @@ function extractDropPath(e: DragEvent, app: App): string | null {
   return null;
 }
 
-/** Trailing characters that are usually prose punctuation, not part of a path. */
-const PATH_TRAILING_PUNCTUATION = /[.,;:!?)\]}>'"]+$/;
-
-/**
- * Find path-like tokens on a line: single/double-quoted strings, or unquoted
- * runs containing a slash (forward or back, for Windows paths). Each result
- * carries the 0-based column span of the path itself (surrounding quotes
- * excluded) so a link range can be built.
- */
-function findPathCandidates(text: string): { value: string; start: number; end: number }[] {
-  const results: { value: string; start: number; end: number }[] = [];
-  // 1: Windows drive-absolute  2: 'quoted'  3: "quoted"  4: unquoted path with a slash  5: bare filename.ext
-  const re =
-    /([A-Za-z]:[/\\][^"'`<>|?*\n]+)|'([^']+)'|"([^"]+)"|([^\s"'`()<>]*[\\/][^\s"'`()<>]+)|([^\s"'`()<>\\/]+\.[A-Za-z0-9]+)/g;
-  let match: RegExpExecArray | null;
-  while ((match = re.exec(text)) !== null) {
-    const driveAbsolute = match[1];
-    if (driveAbsolute !== undefined) {
-      const trimmed = driveAbsolute.replace(PATH_TRAILING_PUNCTUATION, "");
-      if (trimmed.length > 0) {
-        results.push({ value: trimmed, start: match.index, end: match.index + trimmed.length });
-      }
-      continue;
-    }
-    const quoted = match[2] ?? match[3];
-    if (quoted !== undefined) {
-      const start = match.index + 1; // skip the opening quote
-      results.push({ value: quoted, start, end: start + quoted.length });
-      continue;
-    }
-    const trimmed = (match[4] ?? match[5]).replace(PATH_TRAILING_PUNCTUATION, "");
-    if (trimmed.length === 0) continue;
-    results.push({ value: trimmed, start: match.index, end: match.index + trimmed.length });
-  }
-  return results;
-}
 
 /** A resolved path either opens inside the vault or in the system default app. */
 type PathTarget =
@@ -647,8 +612,24 @@ export class TerminalTabManager {
         const text = line.translateToString(true);
         const links: ILink[] = [];
         for (const candidate of findPathCandidates(text)) {
-          const target = resolvePathTarget(candidate.value, this.app);
+          // Resolve the raw token first (so a file literally named "foo:42" still
+          // wins); only if that fails, retry after peeling a trailing :line[:col]
+          // suffix (e.g. "src/main.ts:42") and carry the line through so the file
+          // opens at that position.
+          let target = resolvePathTarget(candidate.value, this.app);
+          let targetLine: number | null = null;
+          if (!target) {
+            const { path, line } = splitLineSuffix(candidate.value);
+            if (path !== candidate.value) {
+              const stripped = resolvePathTarget(path, this.app);
+              if (stripped) {
+                target = stripped;
+                targetLine = line;
+              }
+            }
+          }
           if (!target) continue;
+          const resolved = target;
           links.push({
             range: {
               start: { x: candidate.start + 1, y: lineNumber },
@@ -657,18 +638,20 @@ export class TerminalTabManager {
             text: candidate.value,
             decorations: { pointerCursor: true, underline: true },
             activate: (_event: MouseEvent) => {
-              if (target.kind === "vault") {
-                const dest = this.app.metadataCache.getFirstLinkpathDest(target.linkpath, "");
+              if (resolved.kind === "vault") {
+                const dest = this.app.metadataCache.getFirstLinkpathDest(resolved.linkpath, "");
                 if (dest instanceof TFile) {
-                  void this.app.workspace.getLeaf("tab").openFile(dest);
+                  const viewState =
+                    targetLine != null ? { eState: { line: targetLine - 1 } } : undefined;
+                  void this.app.workspace.getLeaf("tab").openFile(dest, viewState);
                 } else {
-                  void this.app.workspace.openLinkText(target.linkpath, "", true);
+                  void this.app.workspace.openLinkText(resolved.linkpath, "", true);
                 }
               } else {
                 const { shell } = window.require("electron") as {
                   shell: { openPath: (p: string) => Promise<string> };
                 };
-                void shell.openPath(target.absPath);
+                void shell.openPath(resolved.absPath);
               }
             },
           });
