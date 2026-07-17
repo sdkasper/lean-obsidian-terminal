@@ -242,6 +242,11 @@ export default class TerminalPlugin extends Plugin {
     const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_TERMINAL);
     if (existing.length > 0) {
       void this.app.workspace.revealLeaf(existing[0]);
+      // Reveal alone does not move keyboard focus into the terminal, so the cursor
+      // stays in the note editor. Make the leaf active with focus; TerminalView's
+      // active-leaf-change handler then focuses the xterm input. This mirrors the
+      // new-terminal path below, which focuses via setViewState({ active: true }).
+      this.app.workspace.setActiveLeaf(existing[0], { focus: true });
       return;
     }
 
