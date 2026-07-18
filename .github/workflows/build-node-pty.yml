@@ -63,6 +63,8 @@ jobs:
       - name: Package prebuilt ARM64 binaries
         if: matrix.use-prebuilt == true
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           PKG=$RUNNER_TEMP/node-pty-pkg
           SRC=arm64-staging/node_modules/node-pty
@@ -73,11 +75,20 @@ jobs:
           cp -r "$SRC/lib/"* "$PKG/lib/"
           cp "$SRC/package.json" "$PKG/"
 
-          # Copy prebuilt ARM64 binaries from repo
-          if [ -d "arm64-prebuilds/${{ matrix.platform }}-${{ matrix.arch }}" ]; then
-            cp -r "arm64-prebuilds/${{ matrix.platform }}-${{ matrix.arch }}"/* "$PKG/prebuilds/${{ matrix.platform }}-${{ matrix.arch }}/"
+          # Download prebuilt ARM64 binaries from the dedicated release asset
+          # (Windows-ARM64 cannot be cross-built in CI; binaries are hosted as a
+          # release asset instead of being tracked in the repo)
+          gh release download arm64-prebuilds-v1 -R sdkasper/lean-obsidian-terminal \
+            -p "arm64-prebuilds-${{ matrix.platform }}-${{ matrix.arch }}.zip" \
+            -D "$RUNNER_TEMP" --clobber
+          mkdir -p "$RUNNER_TEMP/arm64-prebuilds"
+          unzip -o "$RUNNER_TEMP/arm64-prebuilds-${{ matrix.platform }}-${{ matrix.arch }}.zip" -d "$RUNNER_TEMP/arm64-prebuilds"
+
+          # Copy prebuilt ARM64 binaries into the staged package
+          if [ -d "$RUNNER_TEMP/arm64-prebuilds/${{ matrix.platform }}-${{ matrix.arch }}" ]; then
+            cp -r "$RUNNER_TEMP/arm64-prebuilds/${{ matrix.platform }}-${{ matrix.arch }}"/* "$PKG/prebuilds/${{ matrix.platform }}-${{ matrix.arch }}/"
           else
-            echo "ERROR: Prebuilt binaries not found in arm64-prebuilds/${{ matrix.platform }}-${{ matrix.arch }}"
+            echo "ERROR: Prebuilt binaries not found in $RUNNER_TEMP/arm64-prebuilds/${{ matrix.platform }}-${{ matrix.arch }} after extracting release asset"
             exit 1
           fi
       - name: Package node-pty
