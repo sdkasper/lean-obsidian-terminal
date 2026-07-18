@@ -8,3 +8,4 @@ data.json
 shell-integration/
 .superpowers/
 .worktrees/
+arm64-prebuilds/
