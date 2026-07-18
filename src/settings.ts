@@ -5,10 +5,13 @@ import {
   Notice,
   Platform,
   PluginSettingTab,
+  requireApiVersion,
   Setting,
   setIcon,
+  type ButtonComponent,
   type SettingDefinitionItem,
   type SettingGroupItem,
+  type SliderComponent,
 } from "obsidian";
 import type TerminalPlugin from "./main";
 import type { RecentSession, SavedViewState } from "./session-state";
@@ -133,14 +136,40 @@ export class TerminalSettingTab extends PluginSettingTab {
     return this;
   }
 
-  /** Re-render the tab: declaratively on Obsidian 1.13+, via display() before that. */
+  /** Re-render the tab: declaratively on Obsidian 1.13+, imperatively before that. */
   private refresh(): void {
     const modern = this.modernTab();
     if (modern.update) {
       modern.update.call(this);
     } else {
-      this.display();
+      this.renderImperative();
     }
+  }
+
+  /**
+   * Style a button as destructive. setDestructive() only exists on Obsidian
+   * 1.13+; setWarning() is its pre-1.13 equivalent (deprecated in 1.13).
+   * Feature-detected through a structural type so neither the unsupported
+   * nor the deprecated symbol is referenced directly.
+   */
+  private applyDestructiveStyle(btn: ButtonComponent): void {
+    const style = btn as unknown as { setDestructive?: () => unknown; setWarning?: () => unknown };
+    if (requireApiVersion("1.13.0") && style.setDestructive) {
+      style.setDestructive.call(btn);
+    } else {
+      style.setWarning?.call(btn);
+    }
+  }
+
+  /**
+   * Pre-1.13 Obsidian does not show the slider value inline, so the tooltip
+   * (setDynamicTooltip, deprecated in 1.13) is the only way to surface it
+   * there. No-op on 1.13+ where the value is always shown.
+   */
+  private applyLegacySliderTooltip(slider: SliderComponent): void {
+    if (requireApiVersion("1.13.0")) return;
+    const legacy = slider as unknown as { setDynamicTooltip?: () => unknown };
+    legacy.setDynamicTooltip?.call(slider);
   }
 
   private binaryStatusDesc(): string {
@@ -545,17 +574,17 @@ export class TerminalSettingTab extends PluginSettingTab {
   }
 
   private buildResetPaletteRow(setting: Setting): void {
-    setting.addButton((btn) =>
+    setting.addButton((btn) => {
+      this.applyDestructiveStyle(btn);
       btn
         .setButtonText("Reset palette to defaults")
-        .setWarning()
         .onClick(async () => {
           this.plugin.settings.tabColors = DEFAULT_TAB_COLORS.map((c) => ({ ...c }));
           await this.plugin.saveSettings();
           this.plugin.updateTerminalBackgrounds();
           this.refresh();
-        }),
-    );
+        });
+    });
   }
 
   /** Adds the swatch and edit controls for one palette color. The row's name
@@ -594,17 +623,17 @@ export class TerminalSettingTab extends PluginSettingTab {
       );
     }
 
-    row.addSlider((slider) =>
+    row.addSlider((slider) => {
+      this.applyLegacySliderTooltip(slider);
       slider
         .setLimits(0, MAX_TINT_STRENGTH, 1)
         .setValue(color.tintStrength)
-        .setDynamicTooltip()
         .onChange(async (value) => {
           color.tintStrength = value;
           await this.plugin.saveSettings();
           this.plugin.updateTerminalBackgrounds();
-        }),
-    );
+        });
+    });
 
     if (color.builtin) {
       row.addButton((btn) =>
@@ -1038,16 +1067,16 @@ export class TerminalSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("Font size")
       .setDesc("Terminal font size in pixels (8-32)")
-      .addSlider((slider) =>
+      .addSlider((slider) => {
+        this.applyLegacySliderTooltip(slider);
         slider
           .setLimits(8, 32, 1)
           .setValue(this.plugin.settings.fontSize)
-          .setDynamicTooltip()
           .onChange(async (value) => {
             this.plugin.settings.fontSize = value;
             await this.plugin.saveSettings();
-          })
-      );
+          });
+      });
 
     new Setting(containerEl)
       .setName("Font family")
@@ -1063,17 +1092,17 @@ export class TerminalSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("Line height")
       .setDesc("Terminal line height multiplier (default 1.0)")
-      .addSlider((slider) =>
+      .addSlider((slider) => {
+        this.applyLegacySliderTooltip(slider);
         slider
           .setLimits(1.0, 2.0, 0.05)
           .setValue(this.plugin.settings.lineHeight)
-          .setDynamicTooltip()
           .onChange(async (value) => {
             this.plugin.settings.lineHeight = Math.round(value * 100) / 100;
             await this.plugin.saveSettings();
             this.plugin.updateLineHeight();
-          })
-      );
+          });
+      });
 
     this.buildIconRow(
       new Setting(containerEl)
@@ -1185,16 +1214,16 @@ export class TerminalSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("Notification volume")
       .setDesc("Volume for the notification sound (0–100)")
-      .addSlider((slider) =>
+      .addSlider((slider) => {
+        this.applyLegacySliderTooltip(slider);
         slider
           .setLimits(0, 100, 1)
           .setValue(this.plugin.settings.notificationVolume)
-          .setDynamicTooltip()
           .onChange(async (value) => {
             this.plugin.settings.notificationVolume = value;
             await this.plugin.saveSettings();
-          })
-      );
+          });
+      });
   }
 
   private renderPersistenceSection(containerEl: HTMLElement): void {
@@ -1300,6 +1329,10 @@ export class TerminalSettingTab extends PluginSettingTab {
   }
 
   display(): void {
+    this.renderImperative();
+  }
+
+  private renderImperative(): void {
     const { containerEl } = this;
     containerEl.empty();
     this.renderBinarySection(containerEl);
