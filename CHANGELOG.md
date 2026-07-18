@@ -2,51 +2,156 @@
 
 All notable changes to Lean Obsidian Terminal are documented here.
 
+## 1.2.0-beta.1 - May 26, 2026
+
+## arm64-prebuilds-v1 - July 18, 2026
+
 ## 1.3.0 - June 9, 2026
 
 ### New
 
-- feat: Paste clipboard images directly — Ctrl+V / Cmd+V in the terminal pastes clipboard images as file attachments in Claude Code sessions (#80)
-- feat: Clickable file paths — terminal output file paths (Windows drive letters, vault-relative, quoted) are clickable links to open files in new tabs (#81)
-- feat: Public `registerKeyHandler` API — downstream plugins can register key handlers that compose with built-in autocomplete/search handling, enabling terminal customization without forking (#82)
+- feat: attach images on paste and drop
+- feat: make file paths clickable
+- feat: public registerKeyHandler API for composable terminal key bindings (#76)
 
-### Security
+### Improvements
 
-- fix: Shell injection vulnerability in `quotePath` — now properly escapes single quotes in POSIX shells and double quotes in Windows shells
-- fix: Unsanitized `resumeCommand` from workspace state — now validates against expected pattern and strips arbitrary commands from corrupted or malicious workspace.json
-- fix: Temp clipboard image files created world-readable — now created with 0o600 (owner-only) permissions
-- fix: Path traversal in Claude session directory scan — now validates claudeSessionsDir is absolute and contains no `..` traversal segments
+- **v1.3.0 release: image paste/drop, clickable paths, key handler API, and 4 critical security fixes**
+- **Image paste/drop**: Clipboard images and dropped images are now pasted as file attachments
+- **Clickable file paths**: Terminal output containing file paths are now rendered as clickable links to open files in Obsidian
+- **Public registerKeyHandler API**: New extensibility API allowing plugins to register custom key handlers with the terminal
+- **SEC-01 [HIGH]**: Shell injection in quotePath — now escapes embedded quotes (POSIX \'\'\' and Windows \"\")
+- **SEC-02 [HIGH]**: Unsanitized resumeCommand from workspace state — now validates against claude --resume uuid pattern
+- **SEC-03 [MEDIUM]**: Path traversal in Claude session scan — now validates claudeSessionsDir is absolute with no .. segments
+- **SEC-04 [MEDIUM]**: Temp clipboard image files world-readable — now created with 0o600 (owner-only) permissions
+- docs: update README for v1.2.0 shell detection and per-OS path settings
+- Release: v1.3.0 - Image paste/drop and clickable file paths (PR #80 + #81)
+- Release 1.3.0: Image paste/drop, clickable paths, key handler API, security fixes
+- bump: version 1.3.0
+- @glebo309 made their first contribution in https://github.com/sdkasper/lean-obsidian-terminal/pull/80
+- @BrandonABarringer made their first contribution in https://github.com/sdkasper/lean-obsidian-terminal/pull/82
+
+### Bug fixes
+
+- Fix: resolve merge conflict markers
+- Fix: replace deprecated activeLeaf API
+
+## 1.2.0 - June 3, 2026
+
+### Improvements
+
+- docs: update CHANGELOG for v1.1.2
+- Release v1.2.0
 
 ## 1.1.2 - May 19, 2026
 
-### Fixed
+### Improvements
 
-- fix: Tab rename input no longer dismissed when resizing panes or switching leaves while editing (#72)
+- Release v1.1.1
+- docs: update CHANGELOG, settings, and README for v1.1.1
+- Release v1.1.2 — fix tab rename focus regression
+
+## 1.1.2-beta.1 - May 19, 2026
+
+### Improvements
+
+- Release v1.1.1
+- docs: update CHANGELOG, settings, and README for v1.1.1
 
 ## 1.1.1 - May 18, 2026
 
-### New
+### Improvements
 
-- feat: Cursor style setting — choose block, bar, or underline cursor; applies to newly opened tabs (#66)
+- docs: explain extra release files (node-pty zips, checksums.json)
+- Release v1.1.0 - ARM64 Windows support + official marketplace
+- merge: v1.1.0 release into master
 
-### Fixed
+### Bug fixes
 
-- fix: Escape key is now captured by the terminal and no longer propagates to Obsidian handlers (#68)
-- fix: Terminal focus restored when switching back to a detached window (#65)
+- fix: CSS lint and source code warnings (0.16.3)
+- fix: replace text-decoration sub-properties with shorthand (0.16.4)
+- fix: create tmp directory before binary download (0.16.5)
 
-### Known Limitations
+## 1.1.1-beta.7 - May 18, 2026
 
-- Fullscreen mode in detached windows does not reflow terminal content until a command is executed (xterm.js / Obsidian detached window limitation)
+## 1.1.1-beta.6 - May 18, 2026
+
+## 1.1.1-beta.5 - May 18, 2026
+
+## 1.1.1-beta.4 - May 18, 2026
+
+## 1.1.1-beta.3 - May 18, 2026
+
+## 1.1.1-beta.2 - May 18, 2026
+
+## 1.1.1-beta.1 - May 18, 2026
+
+### Improvements
+
+- docs: explain extra release files (node-pty zips, checksums.json)
+- Release v1.1.0 - ARM64 Windows support + official marketplace
+- merge: v1.1.0 release into master
+
+### Bug fixes
+
+- fix: CSS lint and source code warnings (0.16.3)
+- fix: replace text-decoration sub-properties with shorthand (0.16.4)
+- fix: create tmp directory before binary download (0.16.5)
 
 ## 1.1.0 - May 15, 2026
 
+## 0.16.5 - May 13, 2026
+
+### Bug fixes
+
+- fix: create tmp directory before binary download (0.16.5)
+
+## 0.16.4 - May 13, 2026
+
+### Improvements
+
+- docs: explain extra release files (node-pty zips, checksums.json)
+
+### Bug fixes
+
+- fix: replace text-decoration sub-properties with shorthand (0.16.4)
+
+## 0.16.3 - May 13, 2026
+
+### Bug fixes
+
+- fix: CSS lint and source code warnings (0.16.3)
+
+## 0.16.2 - May 13, 2026
+
 ### New
 
-- feat: ARM64 Windows (win32-arm64) binary support - enables plugin on Surface Pro X and ARM64 Windows devices (#62)
+- Add links to related documents in README
 
-### Milestone
+### Improvements
 
-- Plugin now available in Obsidian Community Plugin Directory (officially published)
+- chore: bump version to 0.16.0
+- docs: extract reference sections into standalone docs
+- Update README to consolidate usage and settings sections
+- chore: add changelog automation
+
+### Bug fixes
+
+- fix: remove os module to resolve plugin submission security warning
+- fix: eliminate require(os) from bundle (0.16.2)
+
+## 0.16.1 - May 13, 2026
+
+### New
+
+- Add links to related documents in README
+
+### Improvements
+
+- chore: bump version to 0.16.0
+- docs: extract reference sections into standalone docs
+- Update README to consolidate usage and settings sections
+- chore: add changelog automation
 
 ## 0.16.0 - May 11, 2026
 
