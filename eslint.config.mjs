@@ -35,9 +35,16 @@ export default tseslint.config(
           ignoreRegex: ["\\[\\[.*\\]\\]", "[\\w~./\\\\-]+[/\\\\][\\w~./\\\\-]+", "\\(e\\.g\\..*\\)"],
         },
       ],
-      // Declarative settings API (getSettingDefinitions, Obsidian 1.13+) is
-      // tracked as its own backlog story; not a lint-level fix for this tab.
-      "obsidianmd/settings-tab/prefer-setting-definitions": "off",
     },
+  },
+  {
+    // The settings tab supports Obsidian < 1.13 via its imperative display()
+    // fallback, which necessarily uses APIs deprecated in 1.13 (display,
+    // setWarning, setDynamicTooltip) - they are the only variants that exist
+    // on older runtimes. Inline disables for no-deprecated are blocked by
+    // eslint-comments/no-restricted-disable, so the exemption lives here.
+    // Remove this override when minAppVersion reaches 1.13.
+    files: ["src/settings.ts"],
+    rules: { "@typescript-eslint/no-deprecated": "off" },
   },
 );
