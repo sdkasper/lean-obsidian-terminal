@@ -6,7 +6,7 @@ Obsidian desktop plugin providing an embedded PTY terminal panel using xterm.js 
 
 - TypeScript 5.8, Obsidian Plugin API (1.5.0+)
 - xterm.js 5.5 (terminal rendering) + node-pty 1.0 (pseudo-terminal)
-- esbuild (bundler), no test framework
+- esbuild (bundler), Vitest (tests), ESLint (lint gate)
 
 ## Commands
 
@@ -14,6 +14,8 @@ Obsidian desktop plugin providing an embedded PTY terminal panel using xterm.js 
 npm install         # Install dependencies
 npm run dev         # Watch mode (auto-rebuild on changes)
 npm run build       # Production build (minified, type-checked)
+npm test            # Run Vitest suite
+npm run lint        # Run ESLint (typescript-eslint type-checked + eslint-plugin-obsidianmd)
 node install.mjs    # Copy plugin to D:\LOS Test vault
 ```
 
@@ -21,17 +23,30 @@ node install.mjs    # Copy plugin to D:\LOS Test vault
 
 ```
 src/
-  main.ts                # Plugin lifecycle: commands, ribbon icon, settings
-  terminal-view.ts       # Obsidian ItemView: container, resize observer, tab manager
-  terminal-tab-manager.ts # Tab UI + terminal session lifecycle (spawn, wiring, cleanup)
-  pty-manager.ts         # PTY wrapper: platform shell detection, I/O, resize
-  binary-manager.ts      # Download/manage node-pty native binaries from GitHub releases
-  settings.ts            # Settings UI (shell, font, theme, cursor, scrollback, location)
-  themes.ts              # 4 themes: Obsidian Dark/Light, Monokai, Solarized
-  constants.ts           # View type & icon constants
+  main.ts                   # Plugin lifecycle: commands, ribbon icon, settings
+  terminal-view.ts          # Obsidian ItemView: container, resize observer, tab manager
+  terminal-tab-manager.ts   # Tab UI + terminal session lifecycle (spawn, wiring, cleanup)
+  terminal-opener.ts        # Opens a tab in an existing terminal view, or spins up a new one
+  pty-manager.ts            # PTY wrapper: platform shell detection, I/O, resize, ConPTY dll gating
+  binary-manager.ts         # Download/manage node-pty native binaries from GitHub releases
+  node-api.ts               # Structural types for Node APIs used via Electron's require() (no @types/node)
+  path-links.ts             # Pure helpers: find clickable path tokens, split :line[:col] suffix
+  key-handler-registry.ts   # Registry backing the public registerKeyHandler() API
+  wikilink-autocomplete.ts  # [[ ]] autocomplete overlay for vault notes inside the terminal
+  claude-sessions.ts        # Scans Claude Code project sessions for the session registry
+  recent-sessions.ts        # Rescue buffer (FuzzySuggestModal) for recently closed tabs
+  session-state.ts          # Shared types for terminal session persistence (SavedTab, etc.)
+  shell-integration.ts      # OSC 133 shell integration init scripts (bash/zsh/pwsh)
+  settings.ts               # Settings UI (shell, font, theme, cursor, scrollback, location)
+  themes.ts                 # 12 built-in themes: Obsidian Dark/Light, Monokai, Solarized, Dracula, Nord, etc.
+  theme-registry.ts         # Loads built-in themes + optional themes.json overrides
+  tab-colors.ts             # Tab color palette: built-in presets + user-defined colors
+  color-utils.ts            # sRGB hex mixing for tab-tinted terminal backgrounds
+  obsidian-internals.ts     # Typed access to undocumented Obsidian internals (drag manager)
+  constants.ts              # View type & icon constants
 ```
 
-Plugin > View > TabManager > PtyManager chain. BinaryManager handles native module downloads separately.
+Plugin > View > TabManager > PtyManager chain. BinaryManager handles native module downloads separately. TerminalOpener bridges commands, the session registry, and the recent-sessions rescue buffer into View/TabManager.
 
 ## Key details
 
@@ -39,9 +54,12 @@ Plugin > View > TabManager > PtyManager chain. BinaryManager handles native modu
 - **Native modules**: node-pty NOT bundled by esbuild; loaded at runtime via Electron's `require()`
 - **Binary download**: Users click "Download binaries" in Settings; fetches platform-specific node-pty from GitHub releases
 - **Windows**: winpty backend + ConoutConnection patch (Obsidian's Electron renderer doesn't support Worker threads for ConPTY)
+- **Windows 10 mouse support**: `pty-manager.ts`'s `shouldEnableConptyDll()` gates node-pty's `useConptyDll` on the bundled OpenConsole.exe/conpty.dll actually existing on disk for the host arch, since the win32-arm64 binary package and older downloads may not have them
 - **Shell auto-detect**: Windows tries PowerShell 7 then cmd.exe; macOS/Linux uses `$SHELL`
-- **CI/CD**: Tag `v*` triggers GitHub Actions (build plugin + native binaries + create release)
-- **No tests configured**
+- **Settings UI**: declarative schema with in-app settings search on Obsidian 1.13+, falling back to imperative rendering on older supported versions (minAppVersion unchanged)
+- **CI/CD**: Tag `v*` triggers GitHub Actions (build plugin + native binaries + create release); `arm64-prebuilds/` is no longer tracked in git - CI downloads it from the `arm64-prebuilds-v1` release asset
+- **Tests**: Vitest suite via `npm test` (100 tests / 10 files as of writing), colocated as `src/*.test.ts` with mocks in `__mocks__/`
+- **Lint**: `npm run lint` runs ESLint (typescript-eslint type-checked + eslint-plugin-obsidianmd). Node API access must go through `src/node-api.ts` structural types - the Obsidian review bot type-checks without `@types/node`
 
 ## Agile Artifacts
 
