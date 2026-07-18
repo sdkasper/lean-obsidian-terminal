@@ -21,6 +21,7 @@ import {
   MAX_TINT_STRENGTH,
   type TabColorDef,
 } from "./tab-colors";
+import { externalCommandMissingFile } from "./path-links";
 
 export type NotificationSound = "beep" | "chime" | "ping" | "pop";
 
@@ -41,6 +42,12 @@ export interface TerminalPluginSettings {
   shellPathMac: string;
   shellPathLinux: string;
   startupCommand: string;
+  /**
+   * Command run in a new terminal tab to open a clicked file that lives outside
+   * the vault. Empty = open with the OS default application. Placeholders:
+   * `%F` (shell-quoted absolute path), `%L` (1-based line, 1 if unknown).
+   */
+  externalFileCommand: string;
   fontSize: number;
   fontFamily: string;
   lineHeight: number;
@@ -80,6 +87,7 @@ export const DEFAULT_SETTINGS: TerminalPluginSettings = {
   shellPathMac: "",
   shellPathLinux: "",
   startupCommand: "",
+  externalFileCommand: "",
   fontSize: 14,
   fontFamily: "Menlo, Monaco, 'Courier New', monospace",
   lineHeight: 1.0,
@@ -821,6 +829,30 @@ export class TerminalSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           })
       );
+
+    new Setting(containerEl)
+      .setName("External file open command")
+      .setDesc(
+        "Command run in a new terminal tab when you click a file link outside the vault. " +
+          "Leave empty to open with the OS default app. Placeholders: %F = file path, %L = line number. " +
+          "Example: micro +%L -- %F",
+      )
+      .addText((text) => {
+        text
+          .setPlaceholder("none")
+          .setValue(this.plugin.settings.externalFileCommand)
+          .onChange(async (value) => {
+            this.plugin.settings.externalFileCommand = value;
+            await this.plugin.saveSettings();
+          });
+        // Warn once (on blur, not per keystroke) if a non-empty command omits %F,
+        // which would open the editor on no file — a confusing silent no-op.
+        text.inputEl.addEventListener("blur", () => {
+          if (externalCommandMissingFile(this.plugin.settings.externalFileCommand)) {
+            new Notice("External file command has no %F — the file path won't be passed.");
+          }
+        });
+      });
 
     new Setting(containerEl)
       .setName("Default location")
