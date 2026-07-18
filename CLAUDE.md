@@ -4,7 +4,7 @@ Obsidian desktop plugin providing an embedded PTY terminal panel using xterm.js 
 
 ## Stack
 
-- TypeScript 5.8, Obsidian Plugin API (1.5.0+)
+- TypeScript 5.8, Obsidian Plugin API (minAppVersion 1.7.2; declarative settings on 1.13+)
 - xterm.js 5.5 (terminal rendering) + node-pty 1.0 (pseudo-terminal)
 - esbuild (bundler), Vitest (tests), ESLint (lint gate)
 
@@ -57,7 +57,7 @@ Plugin > View > TabManager > PtyManager chain. BinaryManager handles native modu
 - **Windows 10 mouse support**: `pty-manager.ts`'s `shouldEnableConptyDll()` gates node-pty's `useConptyDll` on the bundled OpenConsole.exe/conpty.dll actually existing on disk for the host arch, since the win32-arm64 binary package and older downloads may not have them
 - **Shell auto-detect**: Windows tries PowerShell 7 then cmd.exe; macOS/Linux uses `$SHELL`
 - **Settings UI**: declarative schema with in-app settings search on Obsidian 1.13+, falling back to imperative rendering on older supported versions (minAppVersion unchanged)
-- **CI/CD**: Tag `v*` triggers GitHub Actions (build plugin + native binaries + create release); `arm64-prebuilds/` is no longer tracked in git - CI downloads it from the `arm64-prebuilds-v1` release asset
+- **CI/CD**: Bare semver tags (`1.4.0`, never `v1.4.0` - must match manifest.json exactly) trigger GitHub Actions (build plugin + native binaries + create release); `arm64-prebuilds/` is no longer tracked in git - CI downloads it from the `arm64-prebuilds-v1` release asset
 - **Tests**: Vitest suite via `npm test` (100 tests / 10 files as of writing), colocated as `src/*.test.ts` with mocks in `__mocks__/`
 - **Lint**: `npm run lint` runs ESLint (typescript-eslint type-checked + eslint-plugin-obsidianmd). Node API access must go through `src/node-api.ts` structural types - the Obsidian review bot type-checks without `@types/node`
 
