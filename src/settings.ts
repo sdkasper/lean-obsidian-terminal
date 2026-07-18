@@ -69,6 +69,7 @@ export interface TerminalPluginSettings {
   tabBarPosition: "top" | "left" | "right";
   wikiLinkAutocomplete: boolean;
   wikiLinkInsertMode: WikiLinkInsertMode;
+  clickableFilePaths: boolean;
   readlineShortcuts: boolean;
   /** Saved by closeTerminal(); restored by activateTerminal(). Cleared after restore. */
   lastViewState?: SavedViewState;
@@ -107,6 +108,7 @@ export const DEFAULT_SETTINGS: TerminalPluginSettings = {
   tabBarPosition: "top",
   wikiLinkAutocomplete: false,
   wikiLinkInsertMode: "wikilink",
+  clickableFilePaths: true,
   readlineShortcuts: true,
 };
 
@@ -300,6 +302,14 @@ export class TerminalSettingTab extends PluginSettingTab {
                 "absolute-path": "Absolute path",
               },
             },
+          },
+          {
+            name: "Clickable file paths",
+            desc:
+              "File paths printed in terminal output become links that open in Obsidian (vault files) " +
+              "or the system default app (files outside the vault). URL and hyperlink clicking are unaffected. " +
+              "Applies to all open and new tabs.",
+            control: { type: "toggle", key: "clickableFilePaths" },
           },
           {
             name: "Readline shortcuts",
@@ -905,6 +915,20 @@ export class TerminalSettingTab extends PluginSettingTab {
           });
         });
     }
+
+    new Setting(containerEl)
+      .setName("Clickable file paths")
+      .setDesc(
+        "File paths printed in terminal output become links that open in Obsidian (vault files) " +
+        "or the system default app (files outside the vault). URL and hyperlink clicking are unaffected. " +
+        "Applies to all open and new tabs.",
+      )
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.clickableFilePaths).onChange(async (value) => {
+          this.plugin.settings.clickableFilePaths = value;
+          await this.plugin.saveSettings();
+        }),
+      );
 
     new Setting(containerEl)
       .setName("Readline shortcuts")
