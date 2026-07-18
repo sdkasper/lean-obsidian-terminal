@@ -15,10 +15,12 @@ export interface ElectronWithWebUtils {
   webUtils: { getPathForFile(file: File): string };
 }
 
-/** Minimal Electron NativeImage surface used for clipboard image paste. */
+/** Minimal Electron NativeImage surface used for clipboard image paste.
+ *  toPNG() returns a Node Buffer at runtime; typed as its Uint8Array base
+ *  so the type does not depend on @types/node (see node-api.ts). */
 export interface ElectronNativeImage {
   isEmpty(): boolean;
-  toPNG(): Buffer;
+  toPNG(): Uint8Array;
 }
 
 /** Electron clipboard accessor for reading images pasted from the OS. */

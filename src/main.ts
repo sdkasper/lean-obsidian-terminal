@@ -9,6 +9,7 @@ import { refreshClaudeRegistry, resumeClaudeSession } from "./claude-sessions";
 import type { SavedViewState } from "./session-state";
 import type { TerminalTabManager } from "./terminal-tab-manager";
 import { KeyHandlerRegistry, type TerminalKeyHandler } from "./key-handler-registry";
+import { requireNode } from "./node-api";
 
 // Public API types for downstream plugins (e.g. companion key-binding plugins).
 export type { TerminalSession } from "./terminal-tab-manager";
@@ -52,7 +53,7 @@ export default class TerminalPlugin extends Plugin {
     await this.loadSettings();
 
     // Initialize binary manager
-    const path = window.require("path") as typeof import("path");
+    const path = requireNode("path");
     const adapter = this.app.vault.adapter as FileSystemAdapter;
     const pluginDir = path.join(
       adapter.getBasePath(),
@@ -195,7 +196,7 @@ export default class TerminalPlugin extends Plugin {
         const vaultRelDir = abstractFile instanceof TFolder
           ? abstractFile.path
           : abstractFile.parent?.path ?? "";
-        const pathMod = window.require("path") as typeof import("path");
+        const pathMod = requireNode("path");
         const adapter = this.app.vault.adapter as FileSystemAdapter;
         const cwd = vaultRelDir
           ? pathMod.join(adapter.getBasePath(), vaultRelDir)
@@ -242,6 +243,11 @@ export default class TerminalPlugin extends Plugin {
     const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_TERMINAL);
     if (existing.length > 0) {
       void this.app.workspace.revealLeaf(existing[0]);
+      // Reveal alone does not move keyboard focus into the terminal, so the cursor
+      // stays in the note editor. Make the leaf active with focus; TerminalView's
+      // active-leaf-change handler then focuses the xterm input. This mirrors the
+      // new-terminal path below, which focuses via setViewState({ active: true }).
+      this.app.workspace.setActiveLeaf(existing[0], { focus: true });
       return;
     }
 
@@ -336,7 +342,7 @@ export default class TerminalPlugin extends Plugin {
   private getActiveFileDirCwd(): string | null {
     const file = this.app.workspace.getActiveFile();
     if (!file) return null;
-    const path = window.require("path") as typeof import("path");
+    const path = requireNode("path");
     const adapter = this.app.vault.adapter as FileSystemAdapter;
     const vaultRelDir = file.parent?.path ?? "";
     return vaultRelDir

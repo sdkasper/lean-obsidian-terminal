@@ -1,4 +1,5 @@
 import { Platform } from "obsidian";
+import { requireNode, nodeProcess } from "./node-api";
 
 /**
  * Shell integration for OSC 133 command detection.
@@ -64,13 +65,12 @@ function prompt {
 `.trim();
 
 function joinPath(...parts: string[]): string {
-  const path = window.require("path") as typeof import("path");
-  return path.join(...parts);
+  return requireNode("path").join(...parts);
 }
 
 /** Write a script to disk if it doesn't exist or has changed. */
 function ensureScript(dir: string, filename: string, content: string): string {
-  const fs = window.require("fs") as typeof import("fs");
+  const fs = requireNode("fs");
   fs.mkdirSync(dir, { recursive: true });
   const filePath = joinPath(dir, filename);
   try {
@@ -116,7 +116,7 @@ export function getShellIntegration(
     const initFile = ensureScript(scriptDir, "zsh-init.zsh", ZSH_SCRIPT);
     // Use the user's ZDOTDIR if set; otherwise let zsh resolve $HOME at runtime.
     // Passing an empty __LOT_USER_ZDOTDIR lets ZSH_SCRIPT's elif branch source $HOME/.zshrc.
-    const customZdotdir = process.env.ZDOTDIR;
+    const customZdotdir = nodeProcess.env.ZDOTDIR;
     const scriptZdotdir = customZdotdir || "${HOME}";
     ensureScript(scriptDir, ".zshenv",   `[[ -f "${scriptZdotdir}/.zshenv"   ]] && source "${scriptZdotdir}/.zshenv"\n`);
     ensureScript(scriptDir, ".zprofile", `[[ -f "${scriptZdotdir}/.zprofile" ]] && source "${scriptZdotdir}/.zprofile"\n`);

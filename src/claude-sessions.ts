@@ -1,6 +1,7 @@
 import { Notice, TFile, FileSystemAdapter } from "obsidian";
 import type TerminalPlugin from "./main";
 import { openTabOrView } from "./terminal-opener";
+import { requireNode } from "./node-api";
 
 export interface ClaudeSessionEntry {
   sessionId: string;
@@ -41,12 +42,12 @@ export async function scanClaudeProjectSessions(
   claudeProjectsDir: string
 ): Promise<ClaudeSessionEntry[]> {
   if (!claudeProjectsDir) return [];
-  const path = window.require("path") as typeof import("path");
+  const path = requireNode("path");
   if (!path.isAbsolute(claudeProjectsDir) || claudeProjectsDir.split(path.sep).includes("..")) {
     console.warn("[lean-terminal] claudeProjectsDir is not a safe absolute path:", claudeProjectsDir);
     return [];
   }
-  const fs = (window.require("fs") as typeof import("fs")).promises;
+  const fs = requireNode("fs").promises;
 
   const encoded = encodeProjectDir(cwd);
   const projectDir = path.join(claudeProjectsDir, encoded);
@@ -103,8 +104,8 @@ export async function scanClaudeProjectSessions(
 }
 
 async function readSessionsIndex(projectDir: string): Promise<Map<string, SessionsIndexEntry>> {
-  const path = window.require("path") as typeof import("path");
-  const fs = (window.require("fs") as typeof import("fs")).promises;
+  const path = requireNode("path");
+  const fs = requireNode("fs").promises;
   const map = new Map<string, SessionsIndexEntry>();
 
   try {
@@ -124,8 +125,8 @@ async function readSessionsIndex(projectDir: string): Promise<Map<string, Sessio
 
 /** Read the first user (non-meta) message in a JSONL session file, truncated. */
 export function readFirstUserPrompt(filePath: string): Promise<string> {
-  const fs = window.require("fs") as typeof import("fs");
-  const readline = window.require("readline") as typeof import("readline");
+  const fs = requireNode("fs");
+  const readline = requireNode("readline");
   return new Promise((resolve) => {
     let found = false;
     const stream = fs.createReadStream(filePath, { encoding: "utf-8" });
@@ -191,7 +192,7 @@ function truncate(s: string, max = 100): string {
  */
 export async function refreshClaudeRegistry(plugin: TerminalPlugin): Promise<void> {
   if (!plugin.settings.enableClaudeIntegration) {
-    new Notice("Enable Claude code integration in settings first.");
+    new Notice("Enable Claude Code integration in settings first.");
     return;
   }
 
