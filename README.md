@@ -19,11 +19,14 @@ An embedded terminal panel for [Obsidian](https://obsidian.md), powered by [xter
 
 - Full PTY terminal (not a simple command runner) with interactive shell support
 - Auto-detects your shell: PowerShell 7 (including Microsoft Store installs) / Windows PowerShell / cmd.exe on Windows, `$SHELL` on macOS/Linux; execution policy bypass applied automatically so shell-integration scripts are never blocked
+- Windows 10 mouse support in TUI apps (vim, htop, etc.) via node-pty's bundled OpenConsole.exe - auto-enabled when the downloaded binaries include it
 - Startup command: configure a command that runs automatically in every new tab once the shell is ready (e.g. `claude`, `npm run dev`)
 - Clipboard support: Ctrl+V / Cmd+V paste, Ctrl+C / Cmd+C copy (with selection)
 - Clickable URLs in terminal output
 - Auto-resize as the panel resizes
 - Shift+Enter inserts a newline without submitting (muscle memory for Claude Code users)
+- Readline shortcuts: Ctrl+K (kill to end), Ctrl+U (kill to start), Ctrl+W (kill word), Ctrl+E (end of line), Ctrl+L (clear screen) - toggle under Settings > Behavior > Readline shortcuts
+- The **Open terminal** command focuses an already-open terminal pane instead of only revealing it, so keyboard input lands in the shell immediately
 - **Note:** Fullscreen mode in detached windows is not supported — terminal content will not reflow to the new width until a command is executed
 
 ### Tab Management
@@ -37,7 +40,7 @@ An embedded terminal panel for [Obsidian](https://obsidian.md), powered by [xter
 
 - Opens in vault root by default; command palette to open in the current file's folder; right-click any file or folder to open a terminal there
 - Drag files or images from the Obsidian file explorer or Windows Explorer into the terminal to insert the absolute path (spaces auto-quoted); paste clipboard images directly to attach in Claude Code sessions
-- Clickable file paths: any valid file path in terminal output becomes a clickable link to open the file in a new tab (recognizes Windows drive letters, vault-relative paths, and quoted paths with spaces)
+- Clickable file paths: any valid file path in terminal output becomes a clickable link that opens the file in Obsidian (vault files) or your system's default app (files outside the vault); recognizes Windows drive letters, vault-relative paths, quoted paths with spaces, and a trailing `path:line[:col]` suffix that jumps straight to that line. On by default - toggle off under Settings > Behavior > Clickable file paths to disable path links while leaving URL and hyperlink clicking unaffected
 - Wiki-link autocomplete: type `[[` in the terminal to pick any vault note and insert as a wiki-link, vault-relative path, or absolute path
 
 ### Search & Selection
@@ -52,6 +55,7 @@ An embedded terminal panel for [Obsidian](https://obsidian.md), powered by [xter
 - Custom background color override with color picker (match your vault theme)
 - Customizable ribbon and panel tab icon (any Lucide icon name)
 - Configurable: per-OS shell path (separate Windows / macOS / Linux settings), font size, font family, cursor style (block/bar/underline), cursor blink, scrollback, panel location
+- Settings appear in Obsidian's in-app settings search on Obsidian 1.13+
 
 ### Sessions & Persistence
 
@@ -189,6 +193,8 @@ If you want to support my work, you can use this link to [buy me a drink](https:
 npm install
 npm run dev          # Watch mode (auto-rebuild on save)
 npm run build        # Production build
+npm test             # Run the Vitest suite
+npm run lint         # Run ESLint (typescript-eslint + eslint-plugin-obsidianmd)
 node install.mjs     # Install to default vault (D:\LOS Test)
 ```
 
