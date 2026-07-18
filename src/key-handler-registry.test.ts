@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { KeyHandlerRegistry, type TerminalKeyHandler } from "./key-handler-registry";
 import type { TerminalSession } from "./terminal-tab-manager";
 
@@ -17,7 +17,7 @@ describe("KeyHandlerRegistry", () => {
   });
 
   it("passes the event and session through to the handler", () => {
-    const e = ev({ key: "ArrowLeft", altKey: true } as Partial<KeyboardEvent>);
+    const e = ev({ key: "ArrowLeft", altKey: true });
     const handler = vi.fn<TerminalKeyHandler>(() => true);
     reg.register(handler);
     reg.dispatch(e, session);

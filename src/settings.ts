@@ -373,7 +373,7 @@ export class TerminalSettingTab extends PluginSettingTab {
       .setDesc("Run this command automatically when a new terminal tab opens (e.g. claude, npm run dev)")
       .addText((text) =>
         text
-          .setPlaceholder("none")
+          .setPlaceholder("None")
           .setValue(this.plugin.settings.startupCommand)
           .onChange(async (value) => {
             this.plugin.settings.startupCommand = value;

@@ -2,6 +2,7 @@ import { FileSystemAdapter, ItemView, WorkspaceLeaf, type ViewStateResult } from
 import { VIEW_TYPE_TERMINAL } from "./constants";
 import { TerminalTabManager, type TabManagerOptions, type CreateTabOpts } from "./terminal-tab-manager";
 import { pushRecentSession } from "./recent-sessions";
+import { requireNode, nodeProcess } from "./node-api";
 import type TerminalPlugin from "./main";
 import type { SavedViewState, SavedTab } from "./session-state";
 
@@ -55,11 +56,11 @@ export class TerminalView extends ItemView {
     try {
       cwd = (this.app.vault.adapter as FileSystemAdapter).getBasePath();
     } catch {
-      cwd = process.cwd();
+      cwd = nodeProcess.cwd();
     }
 
     // Resolve plugin directory for native module loading
-    const path = window.require("path") as typeof import("path");
+    const path = requireNode("path");
     const pluginDir = path.join(
       (this.plugin.app.vault.adapter as FileSystemAdapter).getBasePath(),
       this.plugin.app.vault.configDir, "plugins", this.plugin.manifest.id

@@ -259,7 +259,7 @@ function pasteClipboardImage(pty: PtyManager): boolean {
     if (!image || image.isEmpty()) return false;
     const os = window.require("os") as { tmpdir(): string };
     const fs = window.require("fs") as {
-      writeFileSync(p: string, d: Buffer, opts?: { mode?: number }): void;
+      writeFileSync(p: string, d: Uint8Array, opts?: { mode?: number }): void;
       unlinkSync(p: string): void;
     };
     const path = window.require("path") as { join(...p: string[]): string };
@@ -1200,10 +1200,13 @@ export class TerminalTabManager {
     const session = this.sessions.find((s) => s.id === id);
     if (!session) return;
 
-    const input = activeDocument.createElement("input");
-    input.type = "text";
+    // Created via createEl on the label so the input lands in the same document
+    // (popout windows have their own); replaceWith then moves it into place.
+    const input = labelEl.createEl("input", {
+      cls: "terminal-tab-rename-input",
+      attr: { type: "text" },
+    });
     input.value = session.name;
-    input.className = "terminal-tab-rename-input";
 
     labelEl.replaceWith(input);
     input.focus();
@@ -1235,8 +1238,9 @@ export class TerminalTabManager {
     // Remove any existing context menu
     activeDocument.querySelector(".terminal-tab-context-menu")?.remove();
 
-    const menu = activeDocument.createElement("div");
-    menu.className = "terminal-tab-context-menu";
+    // createEl on body appends immediately; the menu is fully populated within
+    // this same synchronous task, so nothing unfinished ever paints.
+    const menu = activeDocument.body.createDiv({ cls: "terminal-tab-context-menu" });
     menu.style.left = `${e.pageX}px`;
     menu.style.top = `${e.pageY}px`;
 
@@ -1283,8 +1287,6 @@ export class TerminalTabManager {
         menu.remove();
       });
     }
-
-    activeDocument.body.appendChild(menu);
 
     // Close on click outside
     const close = (evt: MouseEvent) => {

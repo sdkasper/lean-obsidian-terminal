@@ -1,6 +1,14 @@
 import { requestUrl } from "obsidian";
 // @ts-ignore — esbuild raw-text plugin inlines this file as a string at build time
 import WINDOWS_CONOUT_PATCH from "../patches/windowsConoutConnection.js?raw";
+import {
+  requireNode,
+  nodeProcess,
+  type FsApi,
+  type PathApi,
+  type ChildProcessApi,
+  type CryptoApi,
+} from "./node-api";
 
 export type BinaryStatus = "not-installed" | "checking" | "downloading" | "ready" | "error";
 
@@ -21,17 +29,17 @@ export class BinaryManager {
   private pluginDir: string;
   private nodePtyDir: string;
   private manifestPath: string;
-  private readonly fs: typeof import("fs");
-  private readonly path: typeof import("path");
-  private readonly childProcess: typeof import("child_process");
-  private readonly crypto: typeof import("crypto");
+  private readonly fs: FsApi;
+  private readonly path: PathApi;
+  private readonly childProcess: ChildProcessApi;
+  private readonly crypto: CryptoApi;
 
   constructor(pluginDir: string) {
     this.pluginDir = pluginDir;
-    this.fs = window.require("fs") as typeof import("fs");
-    this.path = window.require("path") as typeof import("path");
-    this.childProcess = window.require("child_process") as typeof import("child_process");
-    this.crypto = window.require("crypto") as typeof import("crypto");
+    this.fs = requireNode("fs");
+    this.path = requireNode("path");
+    this.childProcess = requireNode("child_process");
+    this.crypto = requireNode("crypto");
 
     this.nodePtyDir = this.path.join(pluginDir, "node_modules", "node-pty");
     this.manifestPath = this.path.join(this.nodePtyDir, ".binary-manifest.json");
@@ -41,8 +49,8 @@ export class BinaryManager {
     this.setStatus("checking");
 
     try {
-      const platform = process.platform;
-      const arch = process.arch;
+      const platform = nodeProcess.platform;
+      const arch = nodeProcess.arch;
 
       // Check core JS entry point
       const indexPath = this.path.join(this.nodePtyDir, "lib", "index.js");
@@ -101,8 +109,8 @@ export class BinaryManager {
         version = (releaseResp.json as { tag_name: string }).tag_name.replace(/^v/, "");
       }
 
-      const platform = process.platform;
-      const arch = process.arch;
+      const platform = nodeProcess.platform;
+      const arch = nodeProcess.arch;
       const assetName = `node-pty-${platform}-${arch}.zip`;
       const tag = version;
       const baseUrl = `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/${tag}`;
@@ -118,7 +126,9 @@ export class BinaryManager {
         url: `${baseUrl}/${assetName}`,
         contentType: "application/octet-stream",
       });
-      const zipBuffer = Buffer.from(zipResp.arrayBuffer);
+      // Uint8Array instead of Buffer: works for both hashing and writeFileSync,
+      // and avoids depending on the Node Buffer global (see node-api.ts).
+      const zipBuffer = new Uint8Array(zipResp.arrayBuffer);
 
       // Verify checksum — always required
       const expectedHash = checksums[assetName];
@@ -232,7 +242,7 @@ export class BinaryManager {
   }
 
   getPlatformInfo(): { platform: string; arch: string } {
-    return { platform: process.platform, arch: process.arch };
+    return { platform: nodeProcess.platform, arch: nodeProcess.arch };
   }
 
   isReady(): boolean {

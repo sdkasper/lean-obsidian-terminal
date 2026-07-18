@@ -9,6 +9,7 @@ import { refreshClaudeRegistry, resumeClaudeSession } from "./claude-sessions";
 import type { SavedViewState } from "./session-state";
 import type { TerminalTabManager } from "./terminal-tab-manager";
 import { KeyHandlerRegistry, type TerminalKeyHandler } from "./key-handler-registry";
+import { requireNode } from "./node-api";
 
 // Public API types for downstream plugins (e.g. companion key-binding plugins).
 export type { TerminalSession } from "./terminal-tab-manager";
@@ -52,7 +53,7 @@ export default class TerminalPlugin extends Plugin {
     await this.loadSettings();
 
     // Initialize binary manager
-    const path = window.require("path") as typeof import("path");
+    const path = requireNode("path");
     const adapter = this.app.vault.adapter as FileSystemAdapter;
     const pluginDir = path.join(
       adapter.getBasePath(),
@@ -195,7 +196,7 @@ export default class TerminalPlugin extends Plugin {
         const vaultRelDir = abstractFile instanceof TFolder
           ? abstractFile.path
           : abstractFile.parent?.path ?? "";
-        const pathMod = window.require("path") as typeof import("path");
+        const pathMod = requireNode("path");
         const adapter = this.app.vault.adapter as FileSystemAdapter;
         const cwd = vaultRelDir
           ? pathMod.join(adapter.getBasePath(), vaultRelDir)
@@ -341,7 +342,7 @@ export default class TerminalPlugin extends Plugin {
   private getActiveFileDirCwd(): string | null {
     const file = this.app.workspace.getActiveFile();
     if (!file) return null;
-    const path = window.require("path") as typeof import("path");
+    const path = requireNode("path");
     const adapter = this.app.vault.adapter as FileSystemAdapter;
     const vaultRelDir = file.parent?.path ?? "";
     return vaultRelDir

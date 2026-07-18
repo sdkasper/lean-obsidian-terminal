@@ -1,5 +1,6 @@
 import type { ITheme } from "@xterm/xterm";
 import { BUILTIN_THEMES } from "./themes";
+import { requireNode } from "./node-api";
 
 /**
  * ThemeRegistry loads built-in themes plus optional themes.json from the plugin folder.
@@ -16,8 +17,8 @@ export class ThemeRegistry {
   }
 
   async load(): Promise<void> {
-    const path = window.require("path") as typeof import("path");
-    const fs = (window.require("fs") as typeof import("fs")).promises;
+    const path = requireNode("path");
+    const fs = requireNode("fs").promises;
 
     const themesPath = path.join(this.pluginDir, "themes.json");
     try {

@@ -1,5 +1,6 @@
 import { Platform } from "obsidian";
 import { getShellIntegration } from "./shell-integration";
+import { requireNode, nodeProcess } from "./node-api";
 
 interface IPtyProcess {
   pid: number;
@@ -27,7 +28,7 @@ interface NodePtyModule {
 
 // node-pty is loaded at runtime via Electron's require, not bundled by esbuild.
 function loadNodePty(pluginDir: string): NodePtyModule {
-  const path = window.require("path") as typeof import("path");
+  const path = requireNode("path");
   const explicitPath = path.join(pluginDir, "node_modules", "node-pty");
 
   try {
@@ -40,20 +41,20 @@ function loadNodePty(pluginDir: string): NodePtyModule {
 function getDefaultShell(): string {
   if (Platform.isWin) {
     const pwshPaths = [
-      process.env.ProgramFiles + "\\PowerShell\\7\\pwsh.exe",                    // standard installer
-      (process.env.LOCALAPPDATA || "") + "\\Microsoft\\WindowsApps\\pwsh.exe",   // MS Store
+      nodeProcess.env.ProgramFiles + "\\PowerShell\\7\\pwsh.exe",                    // standard installer
+      (nodeProcess.env.LOCALAPPDATA || "") + "\\Microsoft\\WindowsApps\\pwsh.exe",   // MS Store
     ];
     try {
-      const fs = window.require("fs") as typeof import("fs");
+      const fs = requireNode("fs");
       for (const p of pwshPaths) {
         if (p && fs.existsSync(p)) return p;
       }
     } catch {
       // ignore
     }
-    return process.env.COMSPEC || "cmd.exe";
+    return nodeProcess.env.COMSPEC || "cmd.exe";
   }
-  return process.env.SHELL || "/bin/bash";
+  return nodeProcess.env.SHELL || "/bin/bash";
 }
 
 function getShellArgs(shellPath: string): string[] {
@@ -74,7 +75,7 @@ function getShellArgs(shellPath: string): string[] {
  * Throws if the path does not exist or is not a file.
  */
 function validateShellPath(shellPath: string): void {
-  const fs = window.require("fs") as typeof import("fs");
+  const fs = requireNode("fs");
   try {
     const stat = fs.statSync(shellPath);
     if (!stat.isFile()) {
@@ -121,7 +122,7 @@ export class PtyManager {
     const args = si.args.length > 0 ? si.args : baseArgs;
 
     const ptyEnv = {
-      ...process.env,
+      ...nodeProcess.env,
       ...si.env,
       ...env,
     };

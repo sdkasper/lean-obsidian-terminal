@@ -1,6 +1,9 @@
 declare global {
   interface Window {
-    require: NodeJS.Require;
+    // Electron's renderer require. Returns unknown (not NodeJS.Require) so
+    // every call site must assert a self-contained structural type - see
+    // src/node-api.ts for why ambient Node typings cannot be relied on.
+    require: (id: string) => unknown;
   }
 }
 
