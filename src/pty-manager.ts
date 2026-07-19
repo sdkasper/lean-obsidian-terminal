@@ -1,6 +1,6 @@
 import { Platform } from "obsidian";
 import { getShellIntegration } from "./shell-integration";
-import { requireNode, nodeProcess } from "./node-api";
+import { requireNode, nodeProcess, type FsApi, type PathApi } from "./node-api";
 
 interface IPtyProcess {
   pid: number;
@@ -22,20 +22,80 @@ interface NodePtyModule {
       cwd?: string;
       env?: Record<string, string | undefined>;
       useConpty?: boolean;
+      useConptyDll?: boolean;
     }
   ): IPtyProcess;
 }
 
-// node-pty is loaded at runtime via Electron's require, not bundled by esbuild.
-function loadNodePty(pluginDir: string): NodePtyModule {
+function getNodePtyDir(pluginDir: string): string {
   const path = requireNode("path");
-  const explicitPath = path.join(pluginDir, "node_modules", "node-pty");
+  return path.join(pluginDir, "node_modules", "node-pty");
+}
 
+// node-pty is loaded at runtime via Electron's require, not bundled by esbuild.
+function loadNodePty(nodePtyDir: string): NodePtyModule {
   try {
-    return window.require(explicitPath) as NodePtyModule;
+    return window.require(nodePtyDir) as NodePtyModule;
   } catch {
     return window.require("node-pty") as NodePtyModule;
   }
+}
+
+// Windows conpty arch directory names as laid out under node-pty's
+// third_party/conpty/<conptyVersion>/<archDir>/ (conpty.dll + OpenConsole.exe).
+const CONPTY_ARCH_DIRS: Record<string, string> = {
+  x64: "win10-x64",
+  arm64: "win10-arm64",
+};
+
+/**
+ * Decides whether it is safe to pass `useConptyDll: true` to node-pty's spawn.
+ *
+ * Context (see GitHub issue #92): on Windows 10, node-pty's default ConPTY
+ * (the in-box conhost) does not forward mouse input to TUI apps. Passing
+ * `useConptyDll: true` makes node-pty launch the modern OpenConsole.exe it
+ * ships under `third_party/conpty/<version>/<archDir>/`, which does forward
+ * mouse input on both Windows 10 and 11.
+ *
+ * This plugin does not bundle node-pty - it downloads a platform-specific
+ * zip from GitHub releases at runtime (see binary-manager.ts). That zip is
+ * built by .github/workflows/build-node-pty.yml, which only copies
+ * `third_party` for the win32-x64 package; the win32-arm64 package is
+ * assembled from a separately staged install that never copies
+ * `third_party`, so it never contains the OpenConsole.exe/conpty.dll files.
+ * Older already-downloaded installs may also predate this fix and lack the
+ * files. Enabling the flag without these files present would break spawn
+ * (or silently fall back to unwanted behavior), so this check gates on the
+ * files actually existing on disk for the host architecture rather than
+ * assuming they are there.
+ */
+export function shouldEnableConptyDll(
+  fs: FsApi,
+  path: PathApi,
+  nodePtyDir: string,
+  platform: string,
+  arch: string
+): boolean {
+  if (platform !== "win32") return false;
+
+  const archDir = CONPTY_ARCH_DIRS[arch];
+  if (!archDir) return false;
+
+  const conptyRoot = path.join(nodePtyDir, "third_party", "conpty");
+  if (!fs.existsSync(conptyRoot)) return false;
+
+  let versionDirs: string[];
+  try {
+    versionDirs = fs.readdirSync(conptyRoot);
+  } catch {
+    return false;
+  }
+
+  return versionDirs.some((version) => {
+    const dll = path.join(conptyRoot, version, archDir, "conpty.dll");
+    const exe = path.join(conptyRoot, version, archDir, "OpenConsole.exe");
+    return fs.existsSync(dll) && fs.existsSync(exe);
+  });
 }
 
 function getDefaultShell(): string {
@@ -110,7 +170,8 @@ export class PtyManager {
     rows: number,
     env?: Record<string, string>
   ): void {
-    this.nodePty = loadNodePty(this.pluginDir);
+    const nodePtyDir = getNodePtyDir(this.pluginDir);
+    this.nodePty = loadNodePty(nodePtyDir);
 
     const shell = shellPath || getDefaultShell();
     this._shellPath = shell;
@@ -127,6 +188,19 @@ export class PtyManager {
       ...env,
     };
 
+    // useConptyDll enables node-pty's bundled OpenConsole.exe instead of the
+    // in-box conhost ConPTY. On Windows 10 the in-box conhost does not
+    // forward mouse input (clicks/wheel) to TUI apps - see issue #92. Only
+    // enabled when the required files are actually present for this host's
+    // architecture (see shouldEnableConptyDll doc comment above).
+    const useConptyDll = shouldEnableConptyDll(
+      requireNode("fs"),
+      requireNode("path"),
+      nodePtyDir,
+      nodeProcess.platform,
+      nodeProcess.arch
+    );
+
     this.ptyProcess = this.nodePty.spawn(shell, args, {
       name: "xterm-256color",
       cols,
@@ -136,6 +210,7 @@ export class PtyManager {
       // ConPTY with patched ConoutConnection (inline socket piping, no Worker threads).
       // useConpty defaults to true on Windows — ConPTY has correct UTF-8/emoji support.
       // Fallback: set useConpty: false here if ConPTY deadlocks on your Electron build.
+      ...(useConptyDll ? { useConptyDll: true } : {}),
     });
   }
 

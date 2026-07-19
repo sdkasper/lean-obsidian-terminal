@@ -32,6 +32,7 @@ export interface FsApi {
   existsSync(path: string): boolean;
   statSync(path: string): FsStats;
   mkdirSync(path: string, options?: { recursive?: boolean }): void;
+  readdirSync(path: string): string[];
   readFileSync(path: string, encoding: "utf-8"): string;
   writeFileSync(path: string, data: string | Uint8Array, encoding?: "utf-8"): void;
   rmSync(path: string, options?: { recursive?: boolean; force?: boolean }): void;

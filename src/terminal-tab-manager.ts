@@ -605,8 +605,11 @@ export class TerminalTabManager {
     });
 
     // Bare file paths open in Obsidian (vault files) or the system app (external).
+    // Gated on settings.clickableFilePaths (live check, so toggling the setting
+    // applies immediately to already-open tabs, not just newly created ones).
     terminal.registerLinkProvider({
       provideLinks: (lineNumber: number, callback: (links: ILink[] | undefined) => void) => {
+        if (!this.settings.clickableFilePaths) { callback([]); return; }
         const line = terminal.buffer.active.getLine(lineNumber - 1);
         if (!line) { callback([]); return; }
         const text = line.translateToString(true);
