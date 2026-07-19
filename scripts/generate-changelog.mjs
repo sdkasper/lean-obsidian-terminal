@@ -48,8 +48,11 @@ function parseReleaseBody(body) {
   const entries = { new: [], improvements: [], bugfixes: [] };
 
   for (const line of lines) {
-    // Skip section headers and full changelog link
+    // Skip section headers, full changelog link, and New Contributors bullets
     if (line.startsWith('## ') || line.startsWith('**Full Changelog')) {
+      continue;
+    }
+    if (line.includes('made their first contribution')) {
       continue;
     }
 
@@ -105,6 +108,10 @@ function buildChangelog(releases) {
   content += 'All notable changes to Lean Obsidian Terminal are documented here.\n\n';
 
   for (const release of releases) {
+    // Only published version releases belong in the changelog
+    if (release.draft || release.prerelease) {
+      continue;
+    }
     const version = release.tag_name;
     const date = formatDate(release.published_at);
     const parsed = parseReleaseBody(release.body);
