@@ -1,6 +1,12 @@
 import { Platform } from "obsidian";
 import { getShellIntegration } from "./shell-integration";
-import { requireNode, nodeProcess, type FsApi, type PathApi } from "./node-api";
+import {
+  requireNode,
+  nodeProcess,
+  type ChildProcessApi,
+  type FsApi,
+  type PathApi,
+} from "./node-api";
 
 interface IPtyProcess {
   pid: number;
@@ -98,17 +104,68 @@ export function shouldEnableConptyDll(
   });
 }
 
+export function resolveWindowsStorePwshAlias(
+  shellPath: string,
+  fs: FsApi,
+  childProcess: ChildProcessApi
+): string {
+  const normalized = shellPath.split("/").join("\\").toLowerCase();
+  if (!normalized.endsWith("\\microsoft\\windowsapps\\pwsh.exe")) return shellPath;
+
+  try {
+    const output = childProcess.execFileSync("where.exe", ["pwsh.exe"], {
+      encoding: "utf8",
+      timeout: 5000,
+    });
+    const candidates = output.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    for (const candidate of candidates) {
+      if (candidate.split("/").join("\\").toLowerCase() === normalized) continue;
+      try {
+        if (fs.statSync(candidate).isFile()) return candidate;
+      } catch {
+        // Try the next result from where.exe.
+      }
+    }
+  } catch {
+    // Try the Store package lookup below.
+  }
+
+  try {
+    const installLocation = childProcess.execFileSync(
+      "powershell.exe",
+      [
+        "-NoLogo",
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        "Get-AppxPackage -Name Microsoft.PowerShell | Sort-Object Version -Descending | Select-Object -First 1 -ExpandProperty InstallLocation",
+      ],
+      { encoding: "utf8", timeout: 5000 }
+    ).trim();
+    if (installLocation) {
+      const candidate = `${installLocation}\\pwsh.exe`;
+      if (fs.statSync(candidate).isFile()) return candidate;
+    }
+  } catch {
+    // Fall through so the normal shell validation reports the failure.
+  }
+
+  return shellPath;
+}
+
 function getDefaultShell(): string {
   if (Platform.isWin) {
-    const pwshPaths = [
-      nodeProcess.env.ProgramFiles + "\\PowerShell\\7\\pwsh.exe",                    // standard installer
-      (nodeProcess.env.LOCALAPPDATA || "") + "\\Microsoft\\WindowsApps\\pwsh.exe",   // MS Store
-    ];
+    const standardPwsh = nodeProcess.env.ProgramFiles + "\\PowerShell\\7\\pwsh.exe";
+    const storeAlias = (nodeProcess.env.LOCALAPPDATA || "") + "\\Microsoft\\WindowsApps\\pwsh.exe";
     try {
       const fs = requireNode("fs");
-      for (const p of pwshPaths) {
-        if (p && fs.existsSync(p)) return p;
-      }
+      if (standardPwsh && fs.existsSync(standardPwsh)) return standardPwsh;
+      const resolvedStorePwsh = resolveWindowsStorePwshAlias(
+        storeAlias,
+        fs,
+        requireNode("child_process")
+      );
+      if (resolvedStorePwsh !== storeAlias) return resolvedStorePwsh;
     } catch {
       // ignore
     }
@@ -173,7 +230,14 @@ export class PtyManager {
     const nodePtyDir = getNodePtyDir(this.pluginDir);
     this.nodePty = loadNodePty(nodePtyDir);
 
-    const shell = shellPath || getDefaultShell();
+    const requestedShell = shellPath || getDefaultShell();
+    const shell = Platform.isWin
+      ? resolveWindowsStorePwshAlias(
+          requestedShell,
+          requireNode("fs"),
+          requireNode("child_process")
+        )
+      : requestedShell;
     this._shellPath = shell;
     validateShellPath(shell);
     const baseArgs = getShellArgs(shell);
