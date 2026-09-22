@@ -49,6 +49,11 @@ export interface PathApi {
 }
 
 export interface ChildProcessApi {
+  execFileSync(
+    file: string,
+    args: string[],
+    options: { encoding: "utf8"; timeout?: number }
+  ): string;
   execFileSync(file: string, args: string[], options?: { timeout?: number }): unknown;
 }
 

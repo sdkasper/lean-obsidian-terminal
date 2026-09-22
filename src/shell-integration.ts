@@ -52,16 +52,17 @@ const PWSH_SCRIPT = `
 # Lean Terminal - shell integration for PowerShell
 if ($env:__LOT_SHELL_INTEGRATION) { return }
 $env:__LOT_SHELL_INTEGRATION = "1"
+$__lot_esc = [char]27
 $__lot_original_prompt = $function:prompt
 function prompt {
     $ec = $global:LASTEXITCODE
-    [Console]::Out.Write("\`e]133;D;$ec\`e\\")
-    [Console]::Out.Write("\`e]133;A\`e\\")
+    [Console]::Out.Write("$__lot_esc]133;D;$ec$__lot_esc\\")
+    [Console]::Out.Write("$__lot_esc]133;A$__lot_esc\\")
     $result = & $__lot_original_prompt
-    [Console]::Out.Write("\`e]133;B\`e\\")
+    [Console]::Out.Write("$__lot_esc]133;B$__lot_esc\\")
     return $result
 }
-[Console]::Out.Write("\`e]133;A\`e\\")
+[Console]::Out.Write("$__lot_esc]133;A$__lot_esc\\")
 `.trim();
 
 function joinPath(...parts: string[]): string {
