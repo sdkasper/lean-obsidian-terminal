@@ -2,6 +2,19 @@
 
 All notable changes to Lean Obsidian Terminal are documented here.
 
+## 1.5.0 - October 4, 2026
+
+### Improvements
+
+- **Update notice:** a one-time pop-up after minor and major releases with a what's-new list and a link to support development. Patch releases never show it, and you can turn it off under Settings > Lean Terminal > Show update notice.
+- **Split panes:** tab commands now target the focused pane (#104).
+- **Escape:** keeps focus in the terminal instead of switching panes, and you can turn that off in settings (#97).
+- **Contrast:** new minimum contrast setting for readable grey and dim text (#106).
+
+### Bug fixes
+
+- **Windows ARM64:** fixed the missing `conpty.dll` error, with automatic repair of existing installs (#105).
+
 ## 1.4.1 - October 4, 2026
 
 ### New
