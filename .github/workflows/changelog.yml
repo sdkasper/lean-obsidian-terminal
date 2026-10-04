@@ -1,8 +1,13 @@
 name: Update Changelog
 
+# The Release workflow publishes the GitHub release with GITHUB_TOKEN, and
+# events created by GITHUB_TOKEN never trigger other workflows, so a
+# `release: published` trigger does not fire. Run when the Release workflow
+# completes instead (that run is started by the tag push, which does count).
 on:
-  release:
-    types: [published]
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
 
 permissions:
   contents: write
@@ -10,7 +15,14 @@ permissions:
 
 jobs:
   changelog:
+    # Only for successful stable releases; skip pre-release tags like 1.5.0-beta.1.
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      !contains(github.event.workflow_run.head_branch, '-beta.')
     runs-on: ubuntu-latest
+    env:
+      # For a tag push, head_branch holds the tag name (github.ref_name would be master here).
+      TAG: ${{ github.event.workflow_run.head_branch }}
     steps:
       - name: Checkout master
         uses: actions/checkout@v4
@@ -31,13 +43,13 @@ jobs:
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "chore: update CHANGELOG for ${{ github.ref_name }}"
-          branch: changelog/${{ github.ref_name }}
-          title: "chore: update CHANGELOG for ${{ github.ref_name }}"
+          commit-message: "docs: regenerate CHANGELOG for ${{ env.TAG }}"
+          branch: changelog/${{ env.TAG }}
+          title: "docs: regenerate CHANGELOG for ${{ env.TAG }}"
           body: |
-            Automated changelog update for release **${{ github.ref_name }}**.
+            Automated changelog update for release **${{ env.TAG }}**.
 
-            This PR was generated automatically when the release was published.
+            This PR was generated automatically when the Release workflow finished.
             Review and merge to update CHANGELOG.md on master.
           labels: |
             changelog
