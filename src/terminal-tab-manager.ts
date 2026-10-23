@@ -1065,6 +1065,11 @@ export class TerminalTabManager {
         window.requestAnimationFrame(() => {
           try {
             fitTerminalSession(session);
+          } catch {
+            // ignore
+          }
+          // Separate from the fit so a fit error cannot skip focusing the tab
+          try {
             session.terminal.focus();
           } catch {
             // ignore

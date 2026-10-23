@@ -23,8 +23,11 @@ export function fitTerminalSession(session: LayoutSession): void {
   const rect = containerEl.getBoundingClientRect();
   // Detached/hidden panes briefly report zero dimensions while being moved.
   if (!containerEl.isConnected || rect.width <= 0 || rect.height <= 0) return;
+  const { cols: prevCols, rows: prevRows } = terminal;
   fitAddon.fit();
   const { cols, rows } = terminal;
-  pty.resize(cols, rows);
+  // node-pty does not deduplicate resizes, and a same-size resize can make ConPTY
+  // or winpty repaint, so only tell the PTY when the size actually changed.
+  if (cols !== prevCols || rows !== prevRows) pty.resize(cols, rows);
   terminal.refresh(0, rows - 1);
 }

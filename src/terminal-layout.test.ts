@@ -57,10 +57,21 @@ describe("terminal moving and repainting", () => {
     expect(s.pty.resize).toHaveBeenCalledWith(90, 30);
     expect(s.terminal.refresh).toHaveBeenCalledWith(0, 29);
   });
-  it("refreshes every visible row even if the terminal dimensions did not change", () => {
+  it("refreshes every visible row but does not resize the PTY when the dimensions did not change", () => {
     const s = session();
     fitTerminalSession(s);
+    expect(s.fitAddon.fit).toHaveBeenCalledOnce();
     expect(s.terminal.refresh).toHaveBeenCalledWith(0, 49);
-    expect(s.pty.resize).toHaveBeenCalledWith(71, 50);
+    expect(s.pty.resize).not.toHaveBeenCalled();
+  });
+  it("resizes the PTY when only the rows or only the columns changed", () => {
+    const rowsOnly = session();
+    rowsOnly.fitAddon.fit.mockImplementation(() => { rowsOnly.terminal.rows = 40; });
+    fitTerminalSession(rowsOnly);
+    expect(rowsOnly.pty.resize).toHaveBeenCalledWith(71, 40);
+    const colsOnly = session();
+    colsOnly.fitAddon.fit.mockImplementation(() => { colsOnly.terminal.cols = 80; });
+    fitTerminalSession(colsOnly);
+    expect(colsOnly.pty.resize).toHaveBeenCalledWith(80, 50);
   });
 });
