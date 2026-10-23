@@ -23,7 +23,7 @@ An embedded terminal panel for [Obsidian](https://obsidian.md), powered by [xter
 - Startup command: configure a command that runs automatically in every new tab once the shell is ready (e.g. `claude`, `npm run dev`)
 - Clipboard support: Ctrl+V / Cmd+V paste, Ctrl+C / Cmd+C copy (with selection)
 - Clickable URLs in terminal output
-- Auto-resize as the panel resizes
+- Auto-resize as the panel resizes or moves; floating status bars no longer cover the last terminal row
 - Shift+Enter inserts a newline without submitting (muscle memory for Claude Code users)
 - Readline shortcuts: Ctrl+K (kill to end), Ctrl+U (kill to start), Ctrl+W (kill word), Ctrl+E (end of line), Ctrl+L (clear screen) - toggle under Settings > Behavior > Readline shortcuts
 - The **Open terminal** command focuses an already-open terminal pane instead of only revealing it, so keyboard input lands in the shell immediately
