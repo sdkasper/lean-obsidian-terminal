@@ -2,6 +2,13 @@
 
 All notable changes to Lean Obsidian Terminal are documented here.
 
+## 1.6.1 - October 23, 2026
+
+### Improvements
+
+- **Shell:** Microsoft Store PowerShell 7 is now found and launched automatically. The Store's `pwsh.exe` alias does not start under the terminal backend, so the plugin resolves it to the real installed package. Shell integration markers also work in Windows PowerShell 5.1 now (#102).
+- **Working directory:** a tab whose saved folder no longer exists (moved or deleted folder, unplugged drive) now opens in your vault root instead of failing to start. The tab keeps the original path saved, so it comes back once the drive does, and a notice tells you when the fallback happened.
+
 ## 1.6.0 - October 22, 2026
 
 ### Improvements
