@@ -22,6 +22,7 @@ An embedded terminal panel for [Obsidian](https://obsidian.md), powered by [xter
 - Windows 10 mouse support in TUI apps (vim, htop, etc.) via node-pty's bundled OpenConsole.exe - auto-enabled when the downloaded binaries include it
 - Startup command: configure a command that runs automatically in every new tab once the shell is ready (e.g. `claude`, `npm run dev`)
 - Clipboard support: Ctrl+V / Cmd+V paste, Ctrl+C / Cmd+C copy (with selection)
+- Safer paste: pasted text goes through the terminal's own paste handling (bracketed paste where the shell supports it). Hidden characters (control, bidi, zero-width and Unicode tag characters) are removed first, and tabs become spaces in shells that would treat them as completion. A multi-line paste into a shell that runs each line on arrival (cmd, PowerShell, dash, tcsh and unrecognized shells) asks for confirmation and shows the full text. Only zsh, fish, nushell, elvish, xonsh and bash (not macOS bash 3.2) skip that prompt. Limit: a program started inside your shell, such as an `ssh` session to a server with a simpler shell, cannot be told apart from the outer shell, so a multi-line paste into it is not confirmed
 - Clickable URLs in terminal output
 - Auto-resize as the panel resizes or moves; floating status bars no longer cover the last terminal row
 - Shift+Enter inserts a newline without submitting (muscle memory for Claude Code users)
@@ -39,8 +40,8 @@ An embedded terminal panel for [Obsidian](https://obsidian.md), powered by [xter
 ### Vault Integration
 
 - Opens in vault root by default; command palette to open in the current file's folder; right-click any file or folder to open a terminal there
-- Drag files or images from the Obsidian file explorer or Windows Explorer into the terminal to insert the absolute path (spaces auto-quoted); paste clipboard images directly to attach in Claude Code sessions
-- Clickable file paths: any valid file path in terminal output becomes a clickable link that opens the file in Obsidian (vault files) or your system's default app (files outside the vault); recognizes Windows drive letters, vault-relative paths, quoted paths with spaces, and a trailing `path:line[:col]` suffix that jumps straight to that line. On by default - toggle off under Settings > Behavior > Clickable file paths to disable path links while leaving URL and hyperlink clicking unaffected
+- Drag files or images from the Obsidian file explorer or Windows Explorer into the terminal to insert the absolute path, quoted for your shell (bash, zsh, fish, PowerShell and cmd; for a shell the plugin does not recognize, only plain paths are inserted and other names are refused with a notice); paste clipboard images directly to attach in Claude Code sessions
+- Clickable file paths: any valid file path in terminal output becomes a clickable link that opens the file in Obsidian (vault files) or your system's default app (files outside the vault; only plain text, source, image, audio and video types and PDFs open directly, and any other file such as a program, script or Office document is revealed in your file manager instead of being run; network paths such as `\\host\share` are never followed); recognizes Windows drive letters, vault-relative paths, quoted paths with spaces, and a trailing `path:line[:col]` suffix that jumps straight to that line. On by default - toggle off under Settings > Behavior > Clickable file paths to disable path links while leaving URL and hyperlink clicking unaffected
 - Wiki-link autocomplete: type `[[` in the terminal to pick any vault note and insert as a wiki-link, vault-relative path, or absolute path
 
 ### Search & Selection
