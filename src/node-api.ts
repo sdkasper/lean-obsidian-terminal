@@ -38,6 +38,7 @@ export interface FsApi {
   readFileSync(path: string, encoding: "utf-8"): string;
   writeFileSync(path: string, data: string | Uint8Array, encoding?: "utf-8"): void;
   rmSync(path: string, options?: { recursive?: boolean; force?: boolean }): void;
+  renameSync(oldPath: string, newPath: string): void;
   unlinkSync(path: string): void;
   chmodSync(path: string, mode: number): void;
   createReadStream(path: string, options?: { encoding?: "utf-8" }): FsReadStream;

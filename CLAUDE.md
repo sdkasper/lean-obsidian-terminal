@@ -30,7 +30,9 @@ src/
   pty-manager.ts            # PTY wrapper: platform shell detection, I/O, resize, ConPTY dll gating
   binary-manager.ts         # Download/manage node-pty native binaries from GitHub releases
   node-api.ts               # Structural types for Node APIs used via Electron's require() (no @types/node)
-  path-links.ts             # Pure helpers: find clickable path tokens, split :line[:col] suffix
+  path-links.ts             # Pure helpers: find clickable path tokens, split :line[:col] suffix, UNC and open-allowlist checks, per-shell quotePath, paste sanitizing (sanitizePaste, tabsToSpaces, shellHonorsBracketedPaste)
+  paste-confirm-modal.ts    # Modal that shows the full text of a multi-line paste before it reaches a shell that runs each line
+  zip-entries.ts            # Pure check for unsafe zip entry names (absolute, drive, dot-only segments) before extraction
   tab-cwd.ts                # Pure helper: plan a new tab's cwd with an injected isDir check; empty, whitespace or a missing directory spawns in the vault root, the requested path stays stored
   osc52-clipboard.ts        # OSC 52 parser handler: write-only clipboard support for terminal apps
   update-notice.ts          # Pure helpers: when to show the one-time update notice (minor/major bumps only)
@@ -64,7 +66,11 @@ Plugin > View > TabManager > PtyManager chain. BinaryManager handles native modu
 - **Settings UI**: declarative schema with in-app settings search on Obsidian 1.13+, falling back to imperative rendering on older supported versions (minAppVersion unchanged)
 - **CI/CD**: Bare semver tags (`1.4.0`, never `v1.4.0` - must match manifest.json exactly) trigger GitHub Actions (build plugin + native binaries + create release); `arm64-prebuilds/` is no longer tracked in git - CI downloads it from the `arm64-prebuilds-v1` release asset
 - **CSS scoping**: every `styles.css` selector must start with `.workspace-leaf-content[data-type="terminal-view"]` or `.lean-`; elements attached to `document.body` use `lean-` classes. `src/styles-scoping.test.ts` enforces this and bans at-rules
-- **Tests**: Vitest suite via `npm test` (184 tests / 18 files as of writing), colocated as `src/*.test.ts` with mocks in `__mocks__/`
+- **Paste safety**: `pasteText` in `terminal-tab-manager.ts` runs every clipboard paste (Ctrl+V and the capture-phase `paste` event) through `sanitizePaste` (removes control, bidi, zero-width, variation-selector and Unicode tag characters), turns tabs into spaces unless the shell is inert, and confirms multi-line text via `PasteConfirmModal` unless `shellHonorsBracketedPaste` is true AND xterm's bracketed-paste mode is on. The mode bit alone is never trusted because program output can set it (`ESC[?2004h`). Known limit: an inner program such as `ssh` into a simpler shell is not detected. A `pasting` flag keeps `terminal.paste()` data away from the wiki-link autocomplete
+- **Shell quoting**: `shellFamily` returns posix (sh, bash, zsh, dash, ash, ksh, mksh, rbash), fish, powershell, cmd or `unknown`; `quotePath` returns `null` when a name cannot be quoted safely (control characters, cmd `% ! "`, anything non-plain for an `unknown` shell), and callers (drop handler, autocomplete) must handle `null` with a Notice. A leading dash gets a `./` prefix (`.\` for cmd). Never guess quoting rules for a shell not listed
+- **Click-to-open**: `resolvePathTarget` rejects UNC paths (no hover stat, avoids SMB/NTLM and UI stalls); `canOpenDirectly` is an allowlist, and every other file is passed to `shell.showItemInFolder` instead of `shell.openPath`. Do not add Office, RTF, XML, CSV, script or shortcut types
+- **Binary install**: `BinaryManager.download` is single-flight, checks zip entries with `unsafeZipEntry`, extracts into `node-pty.new`, then swaps with rollback (`.old-<timestamp>`); the old install is deleted only after a successful swap. PowerShell paths use `psSingleQuote`, which doubles curly quotes too
+- **Tests**: Vitest suite via `npm test` (262 tests / 21 files as of writing), colocated as `src/*.test.ts` with mocks in `__mocks__/`
 - **Lint**: `npm run lint` runs ESLint (typescript-eslint type-checked + eslint-plugin-obsidianmd). Node API access must go through `src/node-api.ts` structural types - the Obsidian review bot type-checks without `@types/node`
 
 ## Agile Artifacts
