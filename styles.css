@@ -694,3 +694,12 @@
   color: var(--text-faint);
   font-style: italic;
 }
+
+.lean-paste-preview {
+  max-height: 40vh;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-family: var(--font-monospace);
+  user-select: text;
+}
