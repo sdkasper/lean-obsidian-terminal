@@ -8,6 +8,7 @@ import { SearchAddon } from "@xterm/addon-search";
 import { registerOsc52 } from "./osc52-clipboard";
 import type { IDisposable } from "@xterm/xterm";
 import { PtyManager } from "./pty-manager";
+import { fitTerminalSession } from "./terminal-layout";
 import { findPathCandidates, splitLineSuffix } from "./path-links";
 import { planTabCwd } from "./tab-cwd";
 import { requireNode } from "./node-api";
@@ -1063,8 +1064,7 @@ export class TerminalTabManager {
         // need to wait for the CSS visibility change to be painted before fit.
         window.requestAnimationFrame(() => {
           try {
-            session.fitAddon.fit();
-            session.pty.resize(session.terminal.cols, session.terminal.rows);
+            fitTerminalSession(session);
             session.terminal.focus();
           } catch {
             // ignore
@@ -1150,8 +1150,7 @@ export class TerminalTabManager {
     const active = this.getActiveSession();
     if (!active) return;
     try {
-      active.fitAddon.fit();
-      active.pty.resize(active.terminal.cols, active.terminal.rows);
+      fitTerminalSession(active);
     } catch {
       // ignore
     }

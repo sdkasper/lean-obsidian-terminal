@@ -1,4 +1,5 @@
 import { FileSystemAdapter, ItemView, WorkspaceLeaf, type ViewStateResult } from "obsidian";
+import { getStatusBarInset } from "./terminal-layout";
 import { VIEW_TYPE_TERMINAL } from "./constants";
 import { TerminalTabManager, type TabManagerOptions, type CreateTabOpts } from "./terminal-tab-manager";
 import { pushRecentSession } from "./recent-sessions";
@@ -12,14 +13,14 @@ export class TerminalView extends ItemView {
   private tabManager: TerminalTabManager | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private resizeTimer: number | null = null;
+  private resizeWindow: Window | null = null;
+  private statusBarEl: Element | null = null;
   private viewContainer: HTMLElement | null = null;
   /**
    * State passed to setState() before onOpen() has constructed the tab manager.
    * Applied in onOpen() once the manager is ready.
    */
   private pendingState: SavedViewState | null = null;
-  /** Tracks whether this leaf is currently active. */
-  private isActive = false;
 
   constructor(leaf: WorkspaceLeaf, plugin: TerminalPlugin) {
     super(leaf);
@@ -93,27 +94,24 @@ export class TerminalView extends ItemView {
       this.tabManager.createTab();
     }
 
-    // Resize observer for auto-fit. Note: fullscreen mode in detached windows does not
-    // trigger proper resize handling — content will not reflow until a command is executed.
-    // This is a limitation of how Obsidian handles detached window events with xterm.js.
-    this.resizeObserver = new ResizeObserver(() => {
-      if (this.resizeTimer) window.clearTimeout(this.resizeTimer);
-      this.resizeTimer = window.setTimeout(() => {
-        this.tabManager?.fitActive();
-        // Only restore focus if this leaf is active; prevent stealing focus during unrelated pane resizes
-        if (this.isActive) {
-          this.tabManager?.focusActive();
-        }
-      }, 50);
-    });
+    this.resizeObserver = new ResizeObserver(() => this.scheduleFit());
     this.resizeObserver.observe(terminalHostEl);
+    this.observeStatusBar();
+    this.register(container.onWindowMigrated(() => {
+      this.observeStatusBar();
+      this.scheduleFit();
+    }));
+    this.registerEvent(this.app.workspace.on("css-change", () => this.scheduleFit()));
+    // Reparenting can keep the same size, so ResizeObserver alone is insufficient.
+    this.registerEvent(this.app.workspace.on("layout-change", () => this.scheduleFit()));
+    this.scheduleFit();
 
     // Restore focus when this leaf becomes active (e.g. switching from another detached window)
     this.registerEvent(
       this.app.workspace.on("active-leaf-change", (leaf) => {
-        this.isActive = leaf === this.leaf;
         if (!leaf || leaf !== this.leaf) return;
         // Defer so Obsidian's own leaf-switch focus logic completes first (prevents racing command palette)
+        this.scheduleFit();
         window.setTimeout(() => this.tabManager?.focusActive(), 0);
       })
     );
@@ -154,10 +152,55 @@ export class TerminalView extends ItemView {
     );
   }
 
+  onResize(): void {
+    this.scheduleFit();
+  }
+
+  private observeStatusBar(): void {
+    const status = this.viewContainer?.ownerDocument.querySelector(".status-bar") ?? null;
+    if (status === this.statusBarEl) return;
+    if (this.statusBarEl) this.resizeObserver?.unobserve(this.statusBarEl);
+    this.statusBarEl = status;
+    if (status) this.resizeObserver?.observe(status);
+  }
+
+  private cancelFit(): void {
+    if (this.resizeTimer !== null) this.resizeWindow?.clearTimeout(this.resizeTimer);
+    this.resizeTimer = null;
+    this.resizeWindow = null;
+  }
+
+  private scheduleFit(): void {
+    this.cancelFit();
+    const win = this.viewContainer?.win;
+    if (!win || !this.tabManager) return;
+    this.resizeWindow = win;
+    this.resizeTimer = win.setTimeout(() => {
+      this.resizeTimer = null;
+      this.resizeWindow = null;
+      const container = this.viewContainer;
+      if (!container?.isConnected || !this.tabManager) return;
+      if (container.ownerDocument.body.classList.contains("is-grabbing")) {
+        this.scheduleFit();
+        return;
+      }
+      this.observeStatusBar();
+      const status = this.statusBarEl;
+      const visible = status && win.getComputedStyle(status).visibility !== "hidden";
+      const inset = getStatusBarInset(container.getBoundingClientRect(), visible ? status.getBoundingClientRect() : null);
+      const padding = `${inset}px`;
+      if (container.style.paddingBottom !== padding) container.style.paddingBottom = padding;
+      // A layout update must not steal focus from a command palette or another pane.
+      this.tabManager.fitActive();
+    }, 100);
+  }
+
   // async: satisfies ItemView.onClose() → Promise<void>; no actual async work here
   async onClose(): Promise<void> {
-    if (this.resizeTimer) window.clearTimeout(this.resizeTimer);
+    this.cancelFit();
     this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
+    this.statusBarEl = null;
     this.tabManager?.destroyAll();
     this.tabManager = null;
   }
