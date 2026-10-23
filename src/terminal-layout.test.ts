@@ -48,6 +48,7 @@ describe("terminal moving and repainting", () => {
     const s = session();
     s.containerEl.isConnected = false;
     fitTerminalSession(s);
+    expect(s.fitAddon.fit).not.toHaveBeenCalled();
     expect(s.pty.resize).not.toHaveBeenCalled();
   });
   it("sends the dimensions produced by fit, rather than the old dimensions", () => {
