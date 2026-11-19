@@ -1081,10 +1081,17 @@ export class TerminalTabManager {
     // written after the separator, so ordering never depends on timing.
     if (opts?.bufferSerial) {
       terminal.write(opts.bufferSerial, () => {
-        terminal.write(restoreSeparator(terminal));
-        const held = session.heldOutput;
-        session.heldOutput = undefined;
-        for (const chunk of held ?? []) terminal.write(chunk);
+        // finally: whatever happens, release the held output, or the tab would
+        // never show anything again and the array would grow without bound.
+        try {
+          terminal.write(restoreSeparator(terminal));
+        } catch (err) {
+          console.error("Terminal: could not write the restore separator", err);
+        } finally {
+          const held = session.heldOutput;
+          session.heldOutput = undefined;
+          for (const chunk of held ?? []) terminal.write(chunk);
+        }
       });
     }
 
