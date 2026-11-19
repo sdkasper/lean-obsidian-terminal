@@ -6,6 +6,7 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import { SerializeAddon } from "@xterm/addon-serialize";
 import { SearchAddon } from "@xterm/addon-search";
 import { registerOsc52 } from "./osc52-clipboard";
+import { restoreSeparator } from "./restore-separator";
 import type { IDisposable } from "@xterm/xterm";
 import { PtyManager } from "./pty-manager";
 import { fitTerminalSession } from "./terminal-layout";
@@ -96,6 +97,11 @@ export interface TerminalSession {
   searchAddon: SearchAddon;
   overlayEl: HTMLElement;
   toggleSearch: () => void;
+  /**
+   * PTY output received while a restored buffer is still being parsed. Set only
+   * during that replay; flushed (after the restore separator) once it is done.
+   */
+  heldOutput?: string[];
 }
 
 /** Options for restoring a tab from persisted state (via setState). */
@@ -989,6 +995,12 @@ export class TerminalTabManager {
     );
   }
 
+  /** Write to the terminal, or queue behind a restored buffer that is still replaying. */
+  private writeOrHold(session: TerminalSession, data: string): void {
+    if (session.heldOutput) session.heldOutput.push(data);
+    else session.terminal.write(data);
+  }
+
   private spawnPty(session: TerminalSession, terminal: Terminal, fitAddon: FitAddon, sessionCwd: string): void {
     const pty = session.pty;
     // Double-rAF: first frame renders the container, second guarantees layout is
@@ -1009,8 +1021,8 @@ export class TerminalTabManager {
       const rows = terminal.rows || 24;
 
       if (!this.binaryManager.isReady()) {
-        terminal.write("\r\n\x1b[33mTerminal binaries not installed.\x1b[0m\r\n");
-        terminal.write("Go to Settings → Terminal to download them.\r\n");
+        this.writeOrHold(session, "\r\n\x1b[33mTerminal binaries not installed.\x1b[0m\r\n");
+        this.writeOrHold(session, "Go to Settings → Terminal to download them.\r\n");
         return;
       }
 
@@ -1019,13 +1031,15 @@ export class TerminalTabManager {
       } catch (err) {
         const message = err instanceof Error ? err.message : "unknown error";
         console.error("Terminal: failed to spawn shell", err);
-        terminal.write(`\r\nFailed to spawn shell: ${message}\r\n`);
+        this.writeOrHold(session, `\r\nFailed to spawn shell: ${message}\r\n`);
         return;
       }
 
       // Wire data: PTY -> xterm
       pty.onData((data: string) => {
-        terminal.write(data);
+        // A restored buffer may still be parsing; keep new output behind the
+        // separator that closes it off (see createTab).
+        this.writeOrHold(session, data);
       });
 
       // Wire data: xterm -> PTY. Autocomplete may consume data (returns true) to
@@ -1059,9 +1073,20 @@ export class TerminalTabManager {
     const { overlayEl, toggleSearch, resultsDisposable } = this.buildSearchOverlay(containerEl, terminal, searchAddon);
 
     // Replay prior buffer (from persisted state) before the PTY produces new output.
-    // No visual marker is written — markers become part of the serialized buffer and
-    // accumulate across restores.
-    if (opts?.bufferSerial) terminal.write(opts.bufferSerial);
+    // The program that drew it is gone, so once it is parsed we move below the old
+    // content and print a dim separator (#129); otherwise the new prompt lands
+    // inside the old UI and looks like a frozen live session. The separator is
+    // saved with the buffer, so each restore adds one more line of history.
+    // PTY output that arrives during the replay is held (session.heldOutput) and
+    // written after the separator, so ordering never depends on timing.
+    if (opts?.bufferSerial) {
+      terminal.write(opts.bufferSerial, () => {
+        terminal.write(restoreSeparator(terminal));
+        const held = session.heldOutput;
+        session.heldOutput = undefined;
+        for (const chunk of held ?? []) terminal.write(chunk);
+      });
+    }
 
     // Mark "output changed since last save" so the view's periodic timer can
     // trigger a save. We avoid calling requestSaveLayout on every write because
@@ -1093,6 +1118,7 @@ export class TerminalTabManager {
       searchAddon,
       overlayEl,
       toggleSearch,
+      heldOutput: opts?.bufferSerial ? [] : undefined,
     };
     session.parserDisposables.push(resultsDisposable);
     // OSC 52 (#103): let TUIs such as Claude Code set the system clipboard.
