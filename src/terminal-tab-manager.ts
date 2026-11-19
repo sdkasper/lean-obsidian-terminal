@@ -6,11 +6,17 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import { SerializeAddon } from "@xterm/addon-serialize";
 import { SearchAddon } from "@xterm/addon-search";
 import { registerOsc52 } from "./osc52-clipboard";
+import { restoreSeparator } from "./restore-separator";
 import type { IDisposable } from "@xterm/xterm";
 import { PtyManager } from "./pty-manager";
-import { findPathCandidates, splitLineSuffix } from "./path-links";
+import { fitTerminalSession } from "./terminal-layout";
+import {
+  findPathCandidates, splitLineSuffix, isUncPath, canOpenDirectly, quotePath, sanitizePaste,
+  shellHonorsBracketedPaste, stripEscapes, tabsToSpaces, hasControlChars,
+} from "./path-links";
 import { planTabCwd } from "./tab-cwd";
-import { requireNode } from "./node-api";
+import { PasteConfirmModal } from "./paste-confirm-modal";
+import { requireNode, nodeProcess } from "./node-api";
 import { isObsidianDark } from "./themes";
 import { mixHex } from "./color-utils";
 import { findTabColor, DEFAULT_TINT_STRENGTH, MAX_TINT_STRENGTH } from "./tab-colors";
@@ -91,6 +97,11 @@ export interface TerminalSession {
   searchAddon: SearchAddon;
   overlayEl: HTMLElement;
   toggleSearch: () => void;
+  /**
+   * PTY output received while a restored buffer is still being parsed. Set only
+   * during that replay; flushed (after the restore separator) once it is done.
+   */
+  heldOutput?: string[];
 }
 
 /** Options for restoring a tab from persisted state (via setState). */
@@ -219,15 +230,6 @@ function resolveSessionTheme(
   return theme;
 }
 
-function quotePath(rawPath: string, shellPath: string): string {
-  if (!rawPath.includes(" ")) return rawPath;
-  const lower = shellPath.toLowerCase();
-  if (lower.includes("bash") || lower.includes("zsh") || lower.includes("sh")) {
-    return `'${rawPath.replace(/'/g, "'\\''")}'`;
-  }
-  return `"${rawPath.replace(/"/g, '\\"')}"`;
-}
-
 /** Raster image extensions that TUIs such as Claude Code attach as vision input. */
 const IMAGE_PATH_PATTERN = /\.(png|jpe?g|gif|webp|bmp)$/i;
 
@@ -242,7 +244,8 @@ function isImagePath(path: string): boolean {
  * single bracketed paste, matching what a real terminal paste sends.
  */
 function bracketedPaste(text: string): string {
-  return `\x1b[200~${text}\x1b[201~`;
+  // Escape bytes are removed so the text cannot close the paste early.
+  return `\x1b[200~${stripEscapes(text)}\x1b[201~`;
 }
 
 /** Monotonic counter so rapid pastes in the same millisecond get unique names. */
@@ -351,6 +354,8 @@ function isExistingFile(absPath: string): boolean {
 function resolvePathTarget(candidate: string, app: App): PathTarget | null {
   // Normalise backslashes so Windows paths resolve like POSIX ones.
   const norm = candidate.split("\\").join("/");
+  // Never stat a network path from a hover: it triggers SMB/NTLM and can stall the UI.
+  if (isUncPath(norm)) return null;
   let abs: string | null = null;
   if (norm.startsWith("/") || /^[A-Za-z]:\//.test(norm)) {
     abs = norm; // POSIX or Windows drive-absolute (e.g. C:/Users/...)
@@ -411,6 +416,8 @@ export class TerminalTabManager {
   private onActiveChange?: () => void;
   private onTabsEmpty?: () => void;
   private requestSaveLayout?: () => void;
+  /** True while a clipboard paste is being fed to the terminal (bypasses autocomplete). */
+  private pasting = false;
   private onSessionClose?: (tab: SavedTab) => void;
   /** Set true by any terminal write/resize; consumed by the view's periodic save timer. */
   private outputDirty = false;
@@ -471,8 +478,19 @@ export class TerminalTabManager {
       if (oscDisposable) { oscDisposable.dispose(); oscDisposable = null; }
     };
 
+    let retries = 0;
+    const rearm = (): void => {
+      // Out of retries: stop polling but keep the OSC handler for a shell that starts late.
+      if (retries++ >= 10) { fallbackTimer = null; return; }
+      if (fallbackTimer) window.clearTimeout(fallbackTimer);
+      fallbackTimer = window.setTimeout(runCommand, 1000);
+    };
+
     const runCommand = (): void => {
       if (executed || !session.resumeCommand) return;
+      // No shell yet (spawn is deferred, or binaries missing / spawn failed): keep the
+      // saved command and look again shortly, so a late shell still gets it.
+      if (!session.pty.isRunning) { rearm(); return; }
       executed = true;
       cleanup();
       const command = session.resumeCommand;
@@ -511,8 +529,16 @@ export class TerminalTabManager {
       if (oscDisposable) { oscDisposable.dispose(); oscDisposable = null; }
     };
 
+    let retries = 0;
+    const rearm = (): void => {
+      if (retries++ >= 10) { fallbackTimer = null; return; }
+      if (fallbackTimer) window.clearTimeout(fallbackTimer);
+      fallbackTimer = window.setTimeout(run, 1000);
+    };
+
     const run = (): void => {
       if (executed) return;
+      if (!session.pty.isRunning) { rearm(); return; }
       executed = true;
       cleanup();
       session.pty.write(command + "\r");
@@ -657,9 +683,15 @@ export class TerminalTabManager {
                 }
               } else {
                 const { shell } = window.require("electron") as {
-                  shell: { openPath: (p: string) => Promise<string> };
+                  shell: {
+                    openPath: (p: string) => Promise<string>;
+                    showItemInFolder: (p: string) => void;
+                  };
                 };
-                void shell.openPath(resolved.absPath);
+                // Only known document types are opened; everything else (programs,
+                // scripts, shortcuts, unknown types) is revealed, not run, by a click.
+                if (canOpenDirectly(resolved.absPath)) void shell.openPath(resolved.absPath);
+                else shell.showItemInFolder(resolved.absPath);
               }
             },
           });
@@ -708,12 +740,12 @@ export class TerminalTabManager {
       hideLabel();
       const path = extractDropPath(e, this.app);
       if (!path) return;
-      // Dropped images attach as files; other files insert as a quoted path.
-      if (isImagePath(path)) {
-        pty.write(bracketedPaste(path));
-      } else {
-        pty.write(quotePath(path, pty.shellPath));
-      }
+      // Both kinds are inserted quoted for the shell: a bare name such as `a$(calc).png`
+      // would run as code on Enter. Images go in as a bracketed paste so a TUI such as
+      // Claude Code attaches them; other files are typed in.
+      const quoted = quotePath(path, pty.shellPath);
+      if (quoted === null) new Notice("Could not safely quote this file name for the shell.");
+      else pty.write(isImagePath(path) ? bracketedPaste(quoted) : quoted);
     });
 
     return dragLabel;
@@ -792,7 +824,49 @@ export class TerminalTabManager {
     return { overlayEl, toggleSearch, resultsDisposable };
   }
 
+  /**
+   * Paste text into a session the way a real terminal does. Escape bytes are
+   * removed so the text cannot end its own bracketed paste, and a multi-line paste
+   * into a shell without bracketed paste (cmd.exe) is confirmed first, because
+   * there every line would run on arrival.
+   */
+  private pasteText(session: TerminalSession, text: string): void {
+    const { text: cleaned, removed } = sanitizePaste(text);
+    if (removed > 0) new Notice(`Removed ${removed} hidden character(s) from the paste.`);
+    if (cleaned.length === 0) return;
+    // The mode bit alone is not trusted: any program output can set it (ESC[?2004h), and
+    // shells that do not read bracketed paste (cmd, dash, tcsh, PowerShell, ...) run
+    // every line of a "bracketed" paste anyway. Only shells known to honor it skip the confirm.
+    const inert =
+      shellHonorsBracketedPaste(session.pty.shellPath, nodeProcess.platform) &&
+      session.terminal.modes.bracketedPasteMode;
+    // Outside an inert paste a tab is completion, not text, and the preview cannot show
+    // what it would pick, so tabs become spaces before the preview and the paste.
+    const clean = inert ? cleaned : tabsToSpaces(cleaned);
+    const send = (): void => {
+      // xterm emits the paste through onData synchronously; the flag keeps it away
+      // from the wiki-link autocomplete, which would drop it or open on a `[[`.
+      this.pasting = true;
+      try { session.terminal.paste(clean); } finally { this.pasting = false; }
+    };
+    if (/[\r\n]/.test(clean) && !inert) {
+      new PasteConfirmModal(this.app, clean, send).open();
+    } else {
+      send();
+    }
+  }
+
   private installKeyHandler(terminal: Terminal, id: string): void {
+    // Browser paste events (Edit > Paste on macOS, middle-click on Linux) would reach
+    // xterm's own handler untouched; take them over so they get the same treatment.
+    terminal.element?.addEventListener("paste", (e: ClipboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const s = this.sessions.find((s) => s.id === id);
+      const text = e.clipboardData?.getData("text/plain");
+      if (s && text) this.pasteText(s, text);
+    }, true);
+
     terminal.attachCustomKeyEventHandler((e: KeyboardEvent) => {
       const s = this.sessions.find((s) => s.id === id);
 
@@ -853,11 +927,16 @@ export class TerminalTabManager {
       if ((mod && e.key === "v") || (e.shiftKey && e.key === "Insert")) {
         e.preventDefault();
         const s = this.sessions.find((s) => s.id === id);
-        // An image on the clipboard is attached as a file; otherwise paste text.
-        if (s && pasteClipboardImage(s.pty)) return false;
+        if (!s) return false;
+        // Text wins when the clipboard holds both (Excel and Word also put a bitmap
+        // there); an image-only clipboard is attached as a file. terminal.paste()
+        // applies bracketed paste and line-ending rules like a real terminal.
         navigator.clipboard.readText().then((text) => {
-          if (text && s) s.pty.write(text);
-        }).catch(() => { /* clipboard unavailable */ });
+          if (text) this.pasteText(s, text);
+          else pasteClipboardImage(s.pty);
+        }).catch(() => {
+          pasteClipboardImage(s.pty);
+        });
         return false;
       }
 
@@ -889,16 +968,20 @@ export class TerminalTabManager {
       // (e.g. "Folder/Note.md" or "Drawings/Sketch.canvas"). Path-mode
       // insertion uses it directly so non-markdown notes work too.
       if (entry?.isFile && entry.path && (mode === "vault-path" || mode === "absolute-path")) {
-        if (mode === "vault-path") {
-          return `${ERASE_BRACKETS}${quotePath(entry.path, pty.shellPath)}`;
+        let target = entry.path;
+        if (mode === "absolute-path") {
+          const adapter = this.app.vault.adapter as FileSystemAdapter;
+          const path = window.require("path") as { join: (...parts: string[]) => string; sep: string };
+          target = path.join(adapter.getBasePath(), entry.path.split("/").join(path.sep));
         }
-        const adapter = this.app.vault.adapter as FileSystemAdapter;
-        const path = window.require("path") as { join: (...parts: string[]) => string; sep: string };
-        const abs = path.join(adapter.getBasePath(), entry.path.split("/").join(path.sep));
-        return `${ERASE_BRACKETS}${quotePath(abs, pty.shellPath)}`;
+        const quoted = quotePath(target, pty.shellPath);
+        if (quoted !== null) return `${ERASE_BRACKETS}${quoted}`;
+        new Notice("Could not safely quote this file name for the shell; inserting the note name instead.");
       }
-      // Wiki-link mode (default) and unresolved/empty fallbacks.
-      if (entry) return `${entry.name}]]`;
+      // Wiki-link mode (default) and unresolved/empty fallbacks. A name holding a
+      // control character (a note made outside Obsidian can contain a newline) would
+      // submit the line, so it is never written to the shell.
+      if (entry) return hasControlChars(entry.name) ? "]]" : `${entry.name}]]`;
       if (query.length > 0) return `${query}]]`;
       return "]]";
     };
@@ -910,6 +993,12 @@ export class TerminalTabManager {
       containerEl,
       resolveInsertion,
     );
+  }
+
+  /** Write to the terminal, or queue behind a restored buffer that is still replaying. */
+  private writeOrHold(session: TerminalSession, data: string): void {
+    if (session.heldOutput) session.heldOutput.push(data);
+    else session.terminal.write(data);
   }
 
   private spawnPty(session: TerminalSession, terminal: Terminal, fitAddon: FitAddon, sessionCwd: string): void {
@@ -932,8 +1021,8 @@ export class TerminalTabManager {
       const rows = terminal.rows || 24;
 
       if (!this.binaryManager.isReady()) {
-        terminal.write("\r\n\x1b[33mTerminal binaries not installed.\x1b[0m\r\n");
-        terminal.write("Go to Settings → Terminal to download them.\r\n");
+        this.writeOrHold(session, "\r\n\x1b[33mTerminal binaries not installed.\x1b[0m\r\n");
+        this.writeOrHold(session, "Go to Settings → Terminal to download them.\r\n");
         return;
       }
 
@@ -942,19 +1031,21 @@ export class TerminalTabManager {
       } catch (err) {
         const message = err instanceof Error ? err.message : "unknown error";
         console.error("Terminal: failed to spawn shell", err);
-        terminal.write(`\r\nFailed to spawn shell: ${message}\r\n`);
+        this.writeOrHold(session, `\r\nFailed to spawn shell: ${message}\r\n`);
         return;
       }
 
       // Wire data: PTY -> xterm
       pty.onData((data: string) => {
-        terminal.write(data);
+        // A restored buffer may still be parsing; keep new output behind the
+        // separator that closes it off (see createTab).
+        this.writeOrHold(session, data);
       });
 
       // Wire data: xterm -> PTY. Autocomplete may consume data (returns true) to
       // prevent keypress-echoed chars from reaching the PTY while active.
       terminal.onData((data: string) => {
-        if (!session.autocomplete?.handleData(data)) pty.write(data);
+        if (this.pasting || !session.autocomplete?.handleData(data)) pty.write(data);
       });
 
       pty.onExit((exitInfo) => {
@@ -982,9 +1073,27 @@ export class TerminalTabManager {
     const { overlayEl, toggleSearch, resultsDisposable } = this.buildSearchOverlay(containerEl, terminal, searchAddon);
 
     // Replay prior buffer (from persisted state) before the PTY produces new output.
-    // No visual marker is written — markers become part of the serialized buffer and
-    // accumulate across restores.
-    if (opts?.bufferSerial) terminal.write(opts.bufferSerial);
+    // The program that drew it is gone, so once it is parsed we move below the old
+    // content and print a dim separator (#129); otherwise the new prompt lands
+    // inside the old UI and looks like a frozen live session. The separator is
+    // saved with the buffer, so each restore adds one more line of history.
+    // PTY output that arrives during the replay is held (session.heldOutput) and
+    // written after the separator, so ordering never depends on timing.
+    if (opts?.bufferSerial) {
+      terminal.write(opts.bufferSerial, () => {
+        // finally: whatever happens, release the held output, or the tab would
+        // never show anything again and the array would grow without bound.
+        try {
+          terminal.write(restoreSeparator(terminal));
+        } catch (err) {
+          console.error("Terminal: could not write the restore separator", err);
+        } finally {
+          const held = session.heldOutput;
+          session.heldOutput = undefined;
+          for (const chunk of held ?? []) terminal.write(chunk);
+        }
+      });
+    }
 
     // Mark "output changed since last save" so the view's periodic timer can
     // trigger a save. We avoid calling requestSaveLayout on every write because
@@ -1016,6 +1125,7 @@ export class TerminalTabManager {
       searchAddon,
       overlayEl,
       toggleSearch,
+      heldOutput: opts?.bufferSerial ? [] : undefined,
     };
     session.parserDisposables.push(resultsDisposable);
     // OSC 52 (#103): let TUIs such as Claude Code set the system clipboard.
@@ -1063,8 +1173,12 @@ export class TerminalTabManager {
         // need to wait for the CSS visibility change to be painted before fit.
         window.requestAnimationFrame(() => {
           try {
-            session.fitAddon.fit();
-            session.pty.resize(session.terminal.cols, session.terminal.rows);
+            fitTerminalSession(session);
+          } catch {
+            // ignore
+          }
+          // Separate from the fit so a fit error cannot skip focusing the tab
+          try {
             session.terminal.focus();
           } catch {
             // ignore
@@ -1150,8 +1264,7 @@ export class TerminalTabManager {
     const active = this.getActiveSession();
     if (!active) return;
     try {
-      active.fitAddon.fit();
-      active.pty.resize(active.terminal.cols, active.terminal.rows);
+      fitTerminalSession(active);
     } catch {
       // ignore
     }
@@ -1277,6 +1390,7 @@ export class TerminalTabManager {
     pinItem.addEventListener("click", () => {
       session.pinned = !session.pinned;
       this.renderTabBar();
+      this.requestSaveLayout?.();
       menu.remove();
     });
 
@@ -1430,6 +1544,7 @@ export class TerminalTabManager {
           const [moved] = this.sessions.splice(srcIndex, 1);
           this.sessions.splice(dstIndex, 0, moved);
           this.renderTabBar();
+          this.requestSaveLayout?.();
         });
       }
     }

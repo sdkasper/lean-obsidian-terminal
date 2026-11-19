@@ -358,6 +358,11 @@ export class PtyManager {
     });
   }
 
+  /** True once a shell has been spawned and until it is killed. */
+  get isRunning(): boolean {
+    return this.ptyProcess !== null;
+  }
+
   write(data: string): void {
     this.ptyProcess?.write(data);
   }
