@@ -16,6 +16,7 @@ All notable changes to Lean Obsidian Terminal are documented here.
 - **Security:** clicking a file path in terminal output no longer runs programs or scripts. Only plain document, media and source types open in their default app; anything else is revealed in your file manager. Network paths (`\\host\share`) are no longer checked when you hover over them.
 - **Security:** a crafted file name can no longer run as a command when you drop it into the terminal or insert it with the `[[` autocomplete (previously affected names with `;`, `&` or `$()`, and PowerShell quoting).
 - **Security:** the download of terminal binaries rejects archives with unsafe entries and no longer breaks on a vault folder with a curly quote in its name.
+- **Session restore:** a restored terminal now ends with a dim "restored output, new session" line, and the new shell prompt starts below the old content instead of inside the old program's screen (#129). Leftover terminal modes from the old program are reset.
 - **Session restore:** a restored Claude tab keeps its `claude --resume` command when the terminal binaries are missing or the shell could not start yet, instead of dropping it.
 
 ## 1.6.1 - October 23, 2026
