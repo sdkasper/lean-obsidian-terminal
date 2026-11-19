@@ -9,6 +9,8 @@ import {
   type ChildProcessApi,
   type CryptoApi,
 } from "./node-api";
+import { unsafeZipEntry } from "./zip-entries";
+import { psSingleQuote } from "./path-links";
 
 export type BinaryStatus = "not-installed" | "checking" | "downloading" | "ready" | "error";
 
@@ -98,7 +100,36 @@ export class BinaryManager {
     }
   }
 
-  async download(version?: string): Promise<void> {
+  /** Names of the entries in the zip, read without extracting it. */
+  private listZipEntries(platform: string, zipPath: string): string[] {
+    const out =
+      platform === "win32"
+        ? this.childProcess.execFileSync(
+            "powershell",
+            [
+              "-NoProfile",
+              "-Command",
+              `Add-Type -AssemblyName System.IO.Compression.FileSystem; [IO.Compression.ZipFile]::OpenRead(${psSingleQuote(zipPath)}).Entries | ForEach-Object { $_.FullName }`,
+            ],
+            { encoding: "utf8", timeout: 30000, windowsHide: true }
+          )
+        : this.childProcess.execFileSync("unzip", ["-Z1", zipPath], { encoding: "utf8", timeout: 30000 });
+    return out.split(/\r?\n/).filter((line) => line.length > 0);
+  }
+
+  private inflight: Promise<void> | null = null;
+
+  /** Concurrent callers share one download instead of racing on the install dir. */
+  download(version?: string): Promise<void> {
+    if (this.inflight) return this.inflight;
+    const run = this.runDownload(version).finally(() => {
+      this.inflight = null;
+    });
+    this.inflight = run;
+    return run;
+  }
+
+  private async runDownload(version?: string): Promise<void> {
     this.setStatus("downloading", "Fetching release info...");
 
     try {
@@ -149,49 +180,99 @@ export class BinaryManager {
       const tmpZip = this.path.join(tmpDir, assetName);
       this.fs.writeFileSync(tmpZip, zipBuffer);
 
-      // Clean existing node-pty dir
-      if (this.fs.existsSync(this.nodePtyDir)) {
-        this.fs.rmSync(this.nodePtyDir, { recursive: true, force: true });
-      }
-      this.fs.mkdirSync(this.nodePtyDir, { recursive: true });
+      // Extract into a staging directory next to the install, so a failed or
+      // blocked extraction never leaves the working install half deleted.
+      const stagingDir = `${this.nodePtyDir}.new`;
+      // Unique per run: a locked leftover from an earlier run (loaded pty.node on
+      // Windows) must not block this one.
+      const oldDir = `${this.nodePtyDir}.old-${Date.now()}`;
+      let movedOld = false;
+      let swapped = false;
 
-      // Extract zip using platform-native tools
-      if (platform === "win32") {
-        this.childProcess.execFileSync(
-          "powershell",
-          [
-            "-NoProfile",
-            "-Command",
-            `Expand-Archive -Path '${tmpZip.replace(/'/g, "''")}' -DestinationPath '${this.nodePtyDir.replace(/'/g, "''")}' -Force`,
-          ],
-          { timeout: 30000 }
-        );
-      } else {
-        this.childProcess.execFileSync(
-          "unzip",
-          ["-o", tmpZip, "-d", this.nodePtyDir],
-          { timeout: 30000 }
-        );
-        // Ensure spawn-helper is executable
-        const spawnHelper = this.path.join(
-          this.nodePtyDir, "prebuilds", `${platform}-${arch}`, "spawn-helper"
-        );
-        if (this.fs.existsSync(spawnHelper)) {
-          this.fs.chmodSync(spawnHelper, 0o755);
-        }
-      }
-
-      // Clean up temp file
       try {
-        this.fs.unlinkSync(tmpZip);
-      } catch {
-        // ignore
-      }
+        this.fs.rmSync(stagingDir, { recursive: true, force: true });
+        this.fs.mkdirSync(stagingDir, { recursive: true });
 
-      // Apply Windows patch
-      if (platform === "win32") {
-        const patchDest = this.path.join(this.nodePtyDir, "lib", "windowsConoutConnection.js");
-        this.fs.writeFileSync(patchDest, WINDOWS_CONOUT_PATCH as string, "utf-8");
+        // Refuse archives with entries that would land outside the target folder.
+        const entries = this.listZipEntries(platform, tmpZip);
+        const bad = entries.find(unsafeZipEntry);
+        if (bad !== undefined) throw new Error(`Unsafe path in ${assetName}: ${bad}`);
+
+        // Extract zip using platform-native tools
+        if (platform === "win32") {
+          this.childProcess.execFileSync(
+            "powershell",
+            [
+              "-NoProfile",
+              "-Command",
+              `Expand-Archive -LiteralPath ${psSingleQuote(tmpZip)} -DestinationPath ${psSingleQuote(stagingDir)} -Force`,
+            ],
+            { timeout: 30000 }
+          );
+        } else {
+          this.childProcess.execFileSync(
+            "unzip",
+            ["-o", tmpZip, "-d", stagingDir],
+            { timeout: 30000 }
+          );
+          // Ensure spawn-helper is executable
+          const spawnHelper = this.path.join(
+            stagingDir, "prebuilds", `${platform}-${arch}`, "spawn-helper"
+          );
+          if (this.fs.existsSync(spawnHelper)) {
+            this.fs.chmodSync(spawnHelper, 0o755);
+          }
+        }
+
+        // Apply Windows patch
+        if (platform === "win32") {
+          const patchDest = this.path.join(stagingDir, "lib", "windowsConoutConnection.js");
+          this.fs.writeFileSync(patchDest, WINDOWS_CONOUT_PATCH as string, "utf-8");
+        }
+
+        // Swap the staged install in, keeping the old one until the swap succeeds.
+        if (this.fs.existsSync(this.nodePtyDir)) {
+          try {
+            this.fs.renameSync(this.nodePtyDir, oldDir);
+            movedOld = true;
+          } catch {
+            throw new Error(
+              "The current terminal binaries could not be replaced. Restart Obsidian and try again."
+            );
+          }
+        }
+        try {
+          this.fs.renameSync(stagingDir, this.nodePtyDir);
+          swapped = true;
+        } catch (err) {
+          // Put the previous install back before reporting the failure.
+          if (movedOld) {
+            try {
+              this.fs.renameSync(oldDir, this.nodePtyDir);
+              movedOld = false;
+            } catch (restoreErr) {
+              console.error("Terminal: could not restore the previous binaries", restoreErr);
+            }
+          }
+          throw err;
+        }
+      } finally {
+        const cleanUp = (p: string): void => {
+          try {
+            this.fs.rmSync(p, { recursive: true, force: true });
+          } catch {
+            // a locked leftover only wastes disk space; the next run uses a new name
+          }
+        };
+        cleanUp(stagingDir);
+        // The old install is only deleted once the new one is in place; if the
+        // rollback itself failed it is the only copy left and stays on disk.
+        if (swapped) cleanUp(oldDir);
+        try {
+          this.fs.unlinkSync(tmpZip);
+        } catch {
+          // ignore
+        }
       }
 
       // Write binary manifest

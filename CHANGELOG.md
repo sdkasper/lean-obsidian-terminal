@@ -2,6 +2,22 @@
 
 All notable changes to Lean Obsidian Terminal are documented here.
 
+## Unreleased
+
+### Improvements
+
+- **Paste:** pasted text now goes through the terminal's own paste handling, so multi-line pastes behave like a real terminal. Hidden characters (control, bidi, zero-width and Unicode tag characters) are removed first. A multi-line paste into a shell that runs each line on arrival (cmd, PowerShell and others) asks for confirmation and shows the full text. A text clipboard now wins over an image when both are present.
+- **Drag and drop:** dropped files and images are quoted for your shell (bash, zsh, fish, PowerShell, cmd). A name that cannot be quoted safely is refused with a notice.
+- **Binary download:** the install is now staged and swapped in with a rollback, so a failed download no longer leaves the terminal without working binaries.
+- **Layout:** pinning a tab and reordering tabs are now saved right away.
+
+### Bug fixes
+
+- **Security:** clicking a file path in terminal output no longer runs programs or scripts. Only plain document, media and source types open in their default app; anything else is revealed in your file manager. Network paths (`\\host\share`) are no longer checked when you hover over them.
+- **Security:** a crafted file name can no longer run as a command when you drop it into the terminal or insert it with the `[[` autocomplete (previously affected names with `;`, `&` or `$()`, and PowerShell quoting).
+- **Security:** the download of terminal binaries rejects archives with unsafe entries and no longer breaks on a vault folder with a curly quote in its name.
+- **Session restore:** a restored Claude tab keeps its `claude --resume` command when the terminal binaries are missing or the shell could not start yet, instead of dropping it.
+
 ## 1.6.1 - October 23, 2026
 
 ### Improvements
