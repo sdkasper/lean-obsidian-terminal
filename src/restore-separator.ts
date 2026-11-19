@@ -53,8 +53,16 @@ export function restoreSeparator(terminal: Pick<Terminal, "rows" | "buffer">): s
     `${ESC}[?1000l${ESC}[?1002l${ESC}[?1003l${ESC}[?1006l` + // mouse reporting off
     `${ESC}[?1004l` + // focus reporting off
     `${ESC}[?2004l` + // bracketed paste off (the new shell turns it on if it wants it)
+    // The other modes SerializeAddon writes into a saved buffer; a shell never
+    // resets them, so a leftover one would be saved again on every restart.
+    `${ESC}[4l` + // insert mode off
+    `${ESC}[?7h` + // autowrap on
+    `${ESC}[?45l` + // reverse wraparound off
+    `${ESC}[?66l` + // application keypad off
     `${ESC}[r` + // reset scroll region (moves the cursor home, so position after)
     `${ESC}[${row + 1};1H` +
-    `\r\n${ESC}[2m${RESTORE_SEPARATOR_TEXT}${ESC}[0m\r\n`
+    // Erase below the last content: rows of coloured blanks (a TUI status bar
+    // with no text) count as empty above, so clear them rather than draw over them.
+    `\r\n${ESC}[J${ESC}[2m${RESTORE_SEPARATOR_TEXT}${ESC}[0m\r\n`
   );
 }

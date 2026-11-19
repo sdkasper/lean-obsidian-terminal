@@ -232,17 +232,20 @@ export class BinaryManager {
 
         // Swap the staged install in, keeping the old one until the swap succeeds.
         if (this.fs.existsSync(this.nodePtyDir)) {
+          // Leftovers from earlier failed swaps; the install being replaced is
+          // still in place, so they are not the only copy.
+          this.sweepOldInstalls();
           try {
-            this.fs.renameSync(this.nodePtyDir, oldDir);
+            await this.renameWithRetry(this.nodePtyDir, oldDir);
             movedOld = true;
           } catch {
             throw new Error(
-              "The current terminal binaries could not be replaced. Restart Obsidian and try again."
+              "The current terminal binaries are in use and could not be replaced. Close all terminals, restart Obsidian and download again before opening a terminal."
             );
           }
         }
         try {
-          this.fs.renameSync(stagingDir, this.nodePtyDir);
+          await this.renameWithRetry(stagingDir, this.nodePtyDir);
           swapped = true;
         } catch (err) {
           // Put the previous install back before reporting the failure.
@@ -289,7 +292,48 @@ export class BinaryManager {
       const message = err instanceof Error ? err.message : String(err);
       console.error("Terminal: binary download failed", err);
       this.setStatus("error", message);
+      // A failed update that left the previous install in place (for example a
+      // locked folder on Windows) must not stop terminals from spawning for the
+      // rest of the session: re-check the files and go back to "ready" if intact.
+      this.checkInstalled();
       throw err;
+    }
+  }
+
+  /**
+   * Rename that retries briefly. On Windows a freshly written executable is often
+   * held open for a moment by antivirus, which fails a directory rename with
+   * EPERM or EBUSY; the same applies to a folder another process is reading.
+   */
+  private async renameWithRetry(from: string, to: string, tries = 8, delayMs = 250): Promise<void> {
+    for (let attempt = 1; ; attempt++) {
+      try {
+        this.fs.renameSync(from, to);
+        return;
+      } catch (err) {
+        const code = (err as { code?: string }).code;
+        const transient = code === "EPERM" || code === "EBUSY" || code === "EACCES";
+        if (!transient || attempt >= tries) throw err;
+        await new Promise<void>((resolve) => window.setTimeout(resolve, delayMs));
+      }
+    }
+  }
+
+  /** Delete `node-pty.old-*` folders that earlier failed swaps left behind (best effort). */
+  private sweepOldInstalls(): void {
+    try {
+      const parent = this.path.join(this.pluginDir, "node_modules");
+      const prefix = "node-pty.old-";
+      for (const name of this.fs.readdirSync(parent)) {
+        if (!name.startsWith(prefix)) continue;
+        try {
+          this.fs.rmSync(this.path.join(parent, name), { recursive: true, force: true });
+        } catch {
+          // still locked; try again on the next download
+        }
+      }
+    } catch {
+      // ignore
     }
   }
 

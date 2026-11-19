@@ -107,6 +107,38 @@ describe("restoreSeparator", () => {
     expect(lines(t).some((x) => x === "after")).toBe(true);
   });
 
+  it("resets every mode the serialize addon can restore", async () => {
+    const t = make();
+    await send(t, "text");
+    await send(t, `${ESC}[4h${ESC}[?7l${ESC}[?45h${ESC}[?66h`);
+    expect(t.modes.insertMode).toBe(true);
+    expect(t.modes.wraparoundMode).toBe(false);
+    expect(t.modes.reverseWraparoundMode).toBe(true);
+    expect(t.modes.applicationKeypadMode).toBe(true);
+
+    await send(t, restoreSeparator(t));
+
+    expect(t.modes.insertMode).toBe(false);
+    expect(t.modes.wraparoundMode).toBe(true);
+    expect(t.modes.reverseWraparoundMode).toBe(false);
+    expect(t.modes.applicationKeypadMode).toBe(false);
+  });
+
+  it("erases coloured blank rows below the last content", async () => {
+    const t = make();
+    // a full-width red status bar with no text, under one line of text
+    await send(t, `text\r\n${ESC}[41m${" ".repeat(40)}${ESC}[0m`);
+    expect(t.buffer.active.getLine(1)?.getCell(5)?.isBgPalette()).toBeTruthy();
+
+    await send(t, restoreSeparator(t));
+    await send(t, "PROMPT$ ");
+
+    // row 1 is now the separator, row 2 the prompt; neither keeps the red cells
+    expect(t.buffer.active.getLine(1)?.getCell(RESTORE_SEPARATOR_TEXT.length + 2)?.isBgPalette()).toBeFalsy();
+    expect(t.buffer.active.getLine(2)?.getCell(20)?.isBgPalette()).toBeFalsy();
+    expect(lines(t)[1]).toBe(RESTORE_SEPARATOR_TEXT);
+  });
+
   it("does not stack a second separator on a normal replay of its own output", async () => {
     // A tab saved after one restore replays: old content, separator, new shell
     // output. Each restore adds exactly one separator below everything.
