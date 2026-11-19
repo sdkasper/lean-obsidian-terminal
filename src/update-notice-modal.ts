@@ -3,10 +3,11 @@ import { SUPPORT_URL } from "./update-notice";
 
 /** Short what's-new lines for the current minor release. Edit per release. */
 export const WHATS_NEW: string[] = [
-  "Terminal apps such as Claude Code can now set your clipboard (OSC 52). It is write-only, so programs can never read it.",
-  "The panel title and ribbon tooltip now say Lean Terminal.",
-  "Tabs with an empty or missing working directory now open in your vault instead of Obsidian's install folder.",
-  "Styling: the plugin's CSS classes are now scoped and prefixed with lean-. CSS snippets that target the old .terminal-* classes need updating.",
+  "Pasting several lines into a shell that runs each line (cmd, PowerShell) now shows the full text and asks first. Hidden characters are removed from pasted text.",
+  "Files you drop into the terminal, or insert with [[, are quoted correctly for your shell.",
+  "Clicking a path in the output opens documents and media only. Programs and scripts are revealed in your file manager instead of being run.",
+  "A restored terminal now ends with a restored output, new session line, so old output no longer looks like a live program.",
+  "A failed binary download no longer leaves the terminal without working binaries.",
 ];
 
 export class UpdateNoticeModal extends Modal {
