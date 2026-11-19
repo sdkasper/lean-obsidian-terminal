@@ -33,6 +33,7 @@ src/
   path-links.ts             # Pure helpers: find clickable path tokens, split :line[:col] suffix
   tab-cwd.ts                # Pure helper: plan a new tab's cwd with an injected isDir check; empty, whitespace or a missing directory spawns in the vault root, the requested path stays stored
   osc52-clipboard.ts        # OSC 52 parser handler: write-only clipboard support for terminal apps
+  restore-separator.ts      # Escape sequence that closes off a replayed buffer: leaves alt screen, resets TUI modes, moves under the old content, prints a dim "restored output, new session" line (#129)
   update-notice.ts          # Pure helpers: when to show the one-time update notice (minor/major bumps only)
   update-notice-modal.ts    # The update notice modal: what's new list and support link
   key-handler-registry.ts   # Registry backing the public registerKeyHandler() API
