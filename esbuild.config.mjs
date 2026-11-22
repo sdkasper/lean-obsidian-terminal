@@ -3,6 +3,7 @@ import process from "process";
 import { builtinModules as builtins } from "node:module";
 import { readFile } from "fs/promises";
 import { resolve, dirname } from "path";
+import { xtermPlatformPlugin } from "./scripts/xterm-platform-patch.mjs";
 
 const prod = process.argv[2] === "production";
 
@@ -24,7 +25,7 @@ const rawTextPlugin = {
 
 const context = await esbuild.context({
   entryPoints: ["src/main.ts"],
-  plugins: [rawTextPlugin],
+  plugins: [rawTextPlugin, xtermPlatformPlugin],
   bundle: true,
   external: [
     "obsidian",
