@@ -5,6 +5,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { SerializeAddon } from "@xterm/addon-serialize";
 import { SearchAddon } from "@xterm/addon-search";
+import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { registerOsc52 } from "./osc52-clipboard";
 import { restoreSeparator } from "./restore-separator";
 import type { IDisposable } from "@xterm/xterm";
@@ -561,6 +562,7 @@ export class TerminalTabManager {
     opts?: CreateTabOpts,
   ): { terminal: Terminal; fitAddon: FitAddon; serializeAddon: SerializeAddon; searchAddon: SearchAddon } {
     const terminal = new Terminal({
+      allowProposedApi: true,
       fontSize: this.settings.fontSize,
       fontFamily: this.settings.fontFamily,
       lineHeight: this.settings.lineHeight,
@@ -602,6 +604,8 @@ export class TerminalTabManager {
     terminal.loadAddon(webLinksAddon);
     terminal.loadAddon(serializeAddon);
     terminal.loadAddon(searchAddon);
+    terminal.loadAddon(new Unicode11Addon());
+    terminal.unicode.activeVersion = "11";
     terminal.open(containerEl);
 
     terminal.registerLinkProvider({
