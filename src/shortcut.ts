@@ -32,7 +32,11 @@ function codeForKey(key: string): string | null {
   return null;
 }
 
-export function matchesShortcut(e: ShortcutEventLike, shortcut: string): boolean {
+/**
+ * `isMac` gates the physical-key fallback. It is only needed on macOS, where Option rewrites
+ * `e.key`; elsewhere Ctrl+Alt is AltGr on Windows and layouts differ, so matching stays by character.
+ */
+export function matchesShortcut(e: ShortcutEventLike, shortcut: string, isMac: boolean): boolean {
   const p = parseShortcut(shortcut);
   if (!p) return false;
   if (
@@ -44,8 +48,8 @@ export function matchesShortcut(e: ShortcutEventLike, shortcut: string): boolean
     return false;
   }
   if (e.key.toLowerCase() === p.key.toLowerCase()) return true;
-  // On macOS, Option changes e.key (Option+F -> "ƒ"), so with Alt held also match the physical key.
-  if (p.alt) {
+  // On macOS, Option changes e.key (Option+F -> "ƒ"), so with Option held also match the physical key.
+  if (isMac && p.alt) {
     const code = codeForKey(p.key);
     return code !== null && e.code === code;
   }

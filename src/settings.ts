@@ -297,7 +297,7 @@ export class TerminalSettingTab extends PluginSettingTab {
           },
           {
             name: "Search shortcut",
-            desc: "Keyboard shortcut to open the in-terminal search bar. Avoid shortcuts already bound in Obsidian's hotkeys (e.g. Ctrl+Shift+F). Use Ctrl+Alt+F or similar. On macOS you can instead bind the \"Search in terminal\" command in Obsidian's Hotkeys settings (Cmd+F is already used by note search).",
+            desc: "Keyboard shortcut to open the in-terminal search bar. Avoid shortcuts already bound in Obsidian's hotkeys (e.g. Ctrl+Shift+F). Use Ctrl+Alt+F or similar. On macOS, Option shortcuts with a letter or digit also match by key position. You can also bind the \"Search in terminal\" command in Obsidian's Hotkeys settings, using different keys from this setting (Cmd+F is already used by note search).",
             control: { type: "text", key: "searchShortcut", placeholder: "Ctrl+Alt+F" },
           },
           {
@@ -921,7 +921,7 @@ export class TerminalSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Search shortcut")
-      .setDesc("Keyboard shortcut to open the in-terminal search bar. Avoid shortcuts already bound in Obsidian's hotkeys (e.g. Ctrl+Shift+F). Use Ctrl+Alt+F or similar. On macOS you can instead bind the \"Search in terminal\" command in Obsidian's Hotkeys settings (Cmd+F is already used by note search).")
+      .setDesc("Keyboard shortcut to open the in-terminal search bar. Avoid shortcuts already bound in Obsidian's hotkeys (e.g. Ctrl+Shift+F). Use Ctrl+Alt+F or similar. On macOS, Option shortcuts with a letter or digit also match by key position. You can also bind the \"Search in terminal\" command in Obsidian's Hotkeys settings, using different keys from this setting (Cmd+F is already used by note search).")
       .addText((text) =>
         text
           .setPlaceholder("Ctrl+Alt+F")

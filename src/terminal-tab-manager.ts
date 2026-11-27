@@ -1,4 +1,4 @@
-import { Notice, App, FileSystemAdapter, TFile } from "obsidian";
+import { Notice, App, FileSystemAdapter, Platform, TFile } from "obsidian";
 import type { AppWithDrag, ElectronWithWebUtils, ElectronWithClipboard, FileWithPath } from "./obsidian-internals";
 import { Terminal, type ILink } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
@@ -528,6 +528,7 @@ export class TerminalTabManager {
     opts?: CreateTabOpts,
   ): { terminal: Terminal; fitAddon: FitAddon; serializeAddon: SerializeAddon; searchAddon: SearchAddon } {
     const terminal = new Terminal({
+      // Required by the search add-on: its match highlights call terminal.registerDecoration().
       allowProposedApi: true,
       fontSize: this.settings.fontSize,
       fontFamily: this.settings.fontFamily,
@@ -858,7 +859,7 @@ export class TerminalTabManager {
       const mod = e.metaKey || e.ctrlKey;
 
       // Search shortcut
-      if (matchesShortcut(e, this.settings.searchShortcut)) {
+      if (matchesShortcut(e, this.settings.searchShortcut, Platform.isMacOS)) {
         e.preventDefault();
         const s = this.sessions.find((s) => s.id === id);
         if (s) s.toggleSearch();

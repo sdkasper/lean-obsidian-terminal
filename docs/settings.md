@@ -22,7 +22,7 @@
 | Registry note path | claude-sessions.md | Vault-relative path to the auto-maintained Claude sessions registry |
 | Registry sessions to keep | 25 | Max Claude sessions listed in the registry note and picker |
 | Copy on select | Off | Automatically copy selected text to the clipboard |
-| Search shortcut | Ctrl+Alt+F | Keyboard shortcut to open the in-terminal search bar. On macOS you can instead bind the "Search in terminal" command in Obsidian's Hotkeys settings (Cmd+F is already used by note search) |
+| Search shortcut | Ctrl+Alt+F | Keyboard shortcut to open the in-terminal search bar. On macOS, Option shortcuts with a letter or digit also match by key position. You can also bind the "Search in terminal" command in Obsidian's Hotkeys settings, using different keys from this setting (Cmd+F is already used by note search) |
 | Wiki-link autocomplete | Off | Type `[[` in the terminal to open a searchable vault note picker |
 | Wiki-link insertion format | Wiki-link | How an accepted note is inserted: `[[Note]]`, vault-relative path, or absolute path |
 | Line height | 1.0 | Terminal line height multiplier (1.0-2.0). Changes apply instantly to open tabs |
