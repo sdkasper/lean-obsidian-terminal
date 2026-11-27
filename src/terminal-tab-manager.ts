@@ -15,6 +15,7 @@ import {
   shellHonorsBracketedPaste, stripEscapes, tabsToSpaces, hasControlChars,
 } from "./path-links";
 import { planTabCwd } from "./tab-cwd";
+import { matchesShortcut } from "./shortcut";
 import { PasteConfirmModal } from "./paste-confirm-modal";
 import { requireNode, nodeProcess } from "./node-api";
 import { isObsidianDark } from "./themes";
@@ -37,40 +38,6 @@ const SEARCH_DECORATIONS = {
   activeMatchBorder: "#ff660090",
   activeMatchColorOverviewRuler: "#ff660090",
 } as const;
-
-interface ParsedShortcut {
-  ctrl: boolean;
-  shift: boolean;
-  alt: boolean;
-  meta: boolean;
-  key: string;
-}
-
-function parseShortcut(s: string): ParsedShortcut | null {
-  if (!s.trim()) return null;
-  const parts = s.split("+");
-  const key = parts[parts.length - 1];
-  const lower = parts.map((p) => p.toLowerCase());
-  return {
-    ctrl: lower.includes("ctrl"),
-    shift: lower.includes("shift"),
-    alt: lower.includes("alt"),
-    meta: lower.includes("meta") || lower.includes("cmd"),
-    key,
-  };
-}
-
-function matchesShortcut(e: KeyboardEvent, shortcut: string): boolean {
-  const p = parseShortcut(shortcut);
-  if (!p) return false;
-  return (
-    e.ctrlKey === p.ctrl &&
-    e.shiftKey === p.shift &&
-    e.altKey === p.alt &&
-    e.metaKey === p.meta &&
-    e.key.toLowerCase() === p.key.toLowerCase()
-  );
-}
 
 export interface TerminalSession {
   id: string;
@@ -561,6 +528,7 @@ export class TerminalTabManager {
     opts?: CreateTabOpts,
   ): { terminal: Terminal; fitAddon: FitAddon; serializeAddon: SerializeAddon; searchAddon: SearchAddon } {
     const terminal = new Terminal({
+      allowProposedApi: true,
       fontSize: this.settings.fontSize,
       fontFamily: this.settings.fontFamily,
       lineHeight: this.settings.lineHeight,
