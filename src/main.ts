@@ -123,6 +123,17 @@ export default class TerminalPlugin extends Plugin {
     });
 
     this.addCommand({
+      id: "search-terminal",
+      name: "Search in terminal",
+      checkCallback: (checking) => {
+        const session = this.app.workspace.getActiveViewOfType(TerminalView)?.getTabManager()?.getActiveSession();
+        if (!session) return false;
+        if (!checking) session.toggleSearch();
+        return true;
+      },
+    });
+
+    this.addCommand({
       id: "restore-recent-terminal-session",
       name: "Restore recent terminal session",
       callback: () => void openRecentSessionPicker(this),

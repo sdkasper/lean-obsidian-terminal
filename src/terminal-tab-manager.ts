@@ -1,4 +1,4 @@
-import { Notice, App, FileSystemAdapter, TFile } from "obsidian";
+import { Notice, App, FileSystemAdapter, Platform, TFile } from "obsidian";
 import type { AppWithDrag, ElectronWithWebUtils, ElectronWithClipboard, FileWithPath } from "./obsidian-internals";
 import { Terminal, type ILink } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
@@ -15,6 +15,7 @@ import {
   shellHonorsBracketedPaste, stripEscapes, tabsToSpaces, hasControlChars,
 } from "./path-links";
 import { planTabCwd } from "./tab-cwd";
+import { matchesShortcut } from "./shortcut";
 import { PasteConfirmModal } from "./paste-confirm-modal";
 import { requireNode, nodeProcess } from "./node-api";
 import { isObsidianDark } from "./themes";
@@ -37,40 +38,6 @@ const SEARCH_DECORATIONS = {
   activeMatchBorder: "#ff660090",
   activeMatchColorOverviewRuler: "#ff660090",
 } as const;
-
-interface ParsedShortcut {
-  ctrl: boolean;
-  shift: boolean;
-  alt: boolean;
-  meta: boolean;
-  key: string;
-}
-
-function parseShortcut(s: string): ParsedShortcut | null {
-  if (!s.trim()) return null;
-  const parts = s.split("+");
-  const key = parts[parts.length - 1];
-  const lower = parts.map((p) => p.toLowerCase());
-  return {
-    ctrl: lower.includes("ctrl"),
-    shift: lower.includes("shift"),
-    alt: lower.includes("alt"),
-    meta: lower.includes("meta") || lower.includes("cmd"),
-    key,
-  };
-}
-
-function matchesShortcut(e: KeyboardEvent, shortcut: string): boolean {
-  const p = parseShortcut(shortcut);
-  if (!p) return false;
-  return (
-    e.ctrlKey === p.ctrl &&
-    e.shiftKey === p.shift &&
-    e.altKey === p.alt &&
-    e.metaKey === p.meta &&
-    e.key.toLowerCase() === p.key.toLowerCase()
-  );
-}
 
 export interface TerminalSession {
   id: string;
@@ -561,6 +528,8 @@ export class TerminalTabManager {
     opts?: CreateTabOpts,
   ): { terminal: Terminal; fitAddon: FitAddon; serializeAddon: SerializeAddon; searchAddon: SearchAddon } {
     const terminal = new Terminal({
+      // Required by the search add-on: its match highlights call terminal.registerDecoration().
+      allowProposedApi: true,
       fontSize: this.settings.fontSize,
       fontFamily: this.settings.fontFamily,
       lineHeight: this.settings.lineHeight,
@@ -890,7 +859,7 @@ export class TerminalTabManager {
       const mod = e.metaKey || e.ctrlKey;
 
       // Search shortcut
-      if (matchesShortcut(e, this.settings.searchShortcut)) {
+      if (matchesShortcut(e, this.settings.searchShortcut, Platform.isMacOS)) {
         e.preventDefault();
         const s = this.sessions.find((s) => s.id === id);
         if (s) s.toggleSearch();
